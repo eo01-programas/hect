@@ -331,6 +331,45 @@
       }
     }
 
+    .toolbar-revision {
+      display: flex;
+      gap: 15px;
+      align-items: flex-end;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      background: #f8fafc;
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    .table-weekly {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .table-weekly th, .table-weekly td {
+      border: 1px solid #e2e8f0;
+      padding: 8px 4px;
+      text-align: center;
+    }
+
+    .table-weekly thead th {
+      background: #f1f5f9;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .table-weekly tr:nth-child(even) { background: #fdfdfd; }
+    .table-weekly tr:hover { background: #f1f5f9; }
+
+    .head-days th { background: #e2e8f0 !important; }
+    .col-salida { color: #0891b2; font-weight: 500; }
+    
+    @media (max-width: 1200px) {
+      .modal-content { width: 98%; }
+    }
+
     /* Modal Styles */
     .modal-overlay {
       position: fixed;
@@ -444,11 +483,6 @@
     </section>
 
     <section class="content">
-      <div class="toolbar">
-        <div id="estado" class="status"><strong>Estado:</strong> cargando datos de la hoja...</div>
-        <div class="status">Los datos se guardan en la hoja de registros.</div>
-      </div>
-
       <div class="header-form">
         <div class="form-group">
           <label for="fecha">Fecha</label>
@@ -486,6 +520,7 @@
         <button id="btnAddRow" class="secondary" type="button">+ Agregar Fila</button>
         <button id="btnGuardar" type="button">Guardar Registros</button>
         <button id="btnResumen" class="secondary" type="button">Registros</button>
+        <button id="btnRevision" class="secondary" type="button">Revisión</button>
         <div id="mensaje" class="message"></div>
       </div>
 
@@ -495,6 +530,72 @@
       </div>
     </section>
   </main>
+
+  <!-- Modal Revision Semanal -->
+  <div id="modalRevision" class="modal-overlay">
+    <div class="modal-content" style="max-width: 95%;">
+      <div class="modal-header">
+        <h2>Revisión Semanal de Horas Extras</h2>
+        <span class="close-modal" id="btnCloseRevision">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="toolbar-revision">
+          <div class="form-group">
+            <label>Año</label>
+            <select id="revYear" class="cell-input" style="width: 100px;"></select>
+          </div>
+          <div class="form-group">
+            <label>Semana #</label>
+            <input type="number" id="revWeek" class="cell-input" style="width: 80px;" min="1" max="53">
+          </div>
+          <div class="form-group">
+            <button id="btnLoadRev" type="button">Consultar Sheet</button>
+          </div>
+          <div class="form-group">
+            <button id="btnUploadRev" class="secondary" type="button">Cargar Archivo Salidas</button>
+            <input type="file" id="fileInputRev" accept=".ods,.txt" style="display: none;">
+          </div>
+          <div class="form-group">
+            <button id="btnExportRev" class="secondary" type="button">Exportar Excel</button>
+          </div>
+          <div id="revMsg" class="message" style="flex: 1;"></div>
+        </div>
+
+        <div class="table-wrap" style="overflow-x: auto;">
+          <table class="table-weekly" id="tableWeekly">
+            <thead>
+              <tr class="head-days">
+                <th rowspan="2">Codigo</th>
+                <th rowspan="2">Trabajador</th>
+                <th colspan="3">Lunes</th>
+                <th colspan="3">Martes</th>
+                <th colspan="3">Miércoles</th>
+                <th colspan="3">Jueves</th>
+                <th colspan="3">Viernes</th>
+                <th colspan="3">Sábado</th>
+                <th colspan="3">Domingo</th>
+              </tr>
+              <tr class="head-sub">
+                <th>HE</th><th>Fin</th><th>Salida</th>
+                <th>HE</th><th>Fin</th><th>Salida</th>
+                <th>HE</th><th>Fin</th><th>Salida</th>
+                <th>HE</th><th>Fin</th><th>Salida</th>
+                <th>HE</th><th>Fin</th><th>Salida</th>
+                <th>HE</th><th>Fin</th><th>Salida</th>
+                <th>HE</th><th>Fin</th><th>Salida</th>
+              </tr>
+            </thead>
+            <tbody id="revTableBody">
+              <!-- Datos aqui -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary" id="btnCloseRevisionBtn">Cerrar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal Resumen -->
   <div id="modalResumen" class="modal-overlay">
@@ -551,8 +652,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script>
     const SHEET_ID = '16Hwc3CuQ5zA-r6BeiYOQt9R-4lWGWPf53cUhunUMJ3c';
-    const SHEET_NAME = 'Datos';
-    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbx6jixDzvSEz1M6kx7H_8qkSeNCvkwPQMslnxjvkr19z9kOxnhjpmsgodhDGW1kM-U7Vg/exec';
+    const SHEET_NAME = 'base';
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby3tKVoiUyo6hSvpUrYlddbXlaHepd8yB-sR7I5uTTkhYxAlD13lh3V0LsLGCq70_fGhQ/exec';
 
     const fechaInput = document.getElementById('fecha');
     const codResInput = document.getElementById('codigoResponsable');
@@ -599,8 +700,10 @@
 
     // --- Utilidades ---
     function localDateValue(date = new Date()) {
-      const tzOffset = date.getTimezoneOffset() * 60000;
-      return new Date(date.getTime() - tzOffset).toISOString().slice(0, 10);
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
 
     function formatDateDisplay(yyyy_mm_dd) {
@@ -615,6 +718,7 @@
     }
 
     function setStatus(text, tone = '') {
+      if (!estadoBox) return;
       estadoBox.className = 'status';
       if (tone) estadoBox.classList.add('state-' + tone);
       estadoBox.innerHTML = '<strong>Estado:</strong> ' + text;
@@ -638,9 +742,16 @@
 
     function formatDuration(minutes) {
       const safeMinutes = Math.max(0, Math.round(minutes));
-      const hours = Math.floor(safeMinutes / 60);
-      const mins = safeMinutes % 60;
-      return String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
+      return Math.round(safeMinutes / 60);
+    }
+
+    function fTime(t) {
+      if (!t) return '';
+      if (String(t).includes('GMT')) {
+        const d = new Date(t);
+        return isNaN(d.getTime()) ? t : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      }
+      return t;
     }
 
     // --- Manejo de Filas ---
@@ -664,12 +775,6 @@
 
       if (sTime) startInp.value = sTime;
       if (eTime) endInp.value = eTime;
-
-      const updateRowWorker = () => {
-        const info = findData(codeInp.value);
-        if (info.fullCode) codeInp.value = info.fullCode;
-        workInp.value = info.name;
-      };
 
       const updateRowHours = () => {
         const s = parseTime(startInp.value);
@@ -914,21 +1019,13 @@
 
       filtered.forEach(rec => {
         const tr = document.createElement('tr');
-        const fTime = (t) => {
-          if (!t) return '';
-          if (String(t).includes('GMT')) {
-            const d = new Date(t);
-            return isNaN(d.getTime()) ? t : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-          }
-          return t;
-        };
         tr.innerHTML = `
           <td>${rec.fecha}</td>
           <td>${rec.codigo}</td>
           <td style="white-space: nowrap;">${rec.trabajador}</td>
           <td>${fTime(rec.hora_inicio)}</td>
           <td>${fTime(rec.hora_fin)}</td>
-          <td><strong>${rec.horas_extras}</strong></td>
+          <td><strong>${String(rec.horas_extras).includes(':') ? formatDuration(parseTime(rec.horas_extras)) : rec.horas_extras}</strong></td>
         `;
         resumenTableBody.appendChild(tr);
       });
@@ -946,10 +1043,14 @@
           const rows = res.table.rows;
           const cols = res.table.cols.map(c => String(c.label || c.id || '').trim().toLowerCase());
 
-          const ci = cols.indexOf('codigo');
-          const wi = cols.indexOf('trabajador');
+          // Buscar indices de forma flexible (ignorar acentos y variaciones)
+          const findCol = (terms) => cols.findIndex(c => terms.some(t => c.normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(t)));
+          
+          const ci = findCol(['codigo', 'cod']);
+          const wi = findCol(['trabajador', 'nombre', 'worker']);
 
           if (ci === -1 || wi === -1) {
+            console.error('Columnas:', cols);
             throw new Error(`Columnas no halladas: ${ci === -1 ? '[codigo]' : ''} ${wi === -1 ? '[trabajador]' : ''}`);
           }
 
@@ -1044,7 +1145,328 @@
 
     btnEjecutarBusqueda.addEventListener('click', loadResumen);
 
+    // --- Revision Logic ---
+    const modalRevision = document.getElementById('modalRevision');
+    const btnRevision = document.getElementById('btnRevision');
+    const btnCloseRevision = document.getElementById('btnCloseRevision');
+    const btnCloseRevisionBtn = document.getElementById('btnCloseRevisionBtn');
+    const btnLoadRev = document.getElementById('btnLoadRev');
+    const btnUploadRev = document.getElementById('btnUploadRev');
+    const btnExportRev = document.getElementById('btnExportRev');
+    const fileInputRev = document.getElementById('fileInputRev');
+    const revTableBody = document.getElementById('revTableBody');
+    const revYear = document.getElementById('revYear');
+    const revWeek = document.getElementById('revWeek');
+    const revMsg = document.getElementById('revMsg');
+
+    let uploadedSalidas = []; // { codigo, fecha, salida1 }
+
+    function setRevMsg(text, tone = '') {
+      revMsg.className = 'message';
+      if (tone) revMsg.classList.add(tone);
+      revMsg.textContent = text;
+    }
+
+    function getWeekNumber(d) {
+      const date = new Date(d.getTime());
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+      const week1 = new Date(date.getFullYear(), 0, 4);
+      return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+    }
+
+    function getRangeFromWeek(year, week) {
+      const jan4 = new Date(year, 0, 4);
+      const day = (jan4.getDay() + 6) % 7; // 0 (Mon) to 6 (Sun)
+      const monWeek1 = new Date(jan4);
+      monWeek1.setDate(jan4.getDate() - day);
+      
+      const start = new Date(monWeek1);
+      start.setDate(monWeek1.getDate() + (week - 1) * 7);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      return { start, end };
+    }
+
+    btnRevision.addEventListener('click', () => {
+      modalRevision.classList.add('active');
+      const now = new Date();
+      const curY = now.getFullYear();
+      
+      // Poblar años (3 anteriores + presente)
+      revYear.innerHTML = '';
+      for (let y = curY; y >= curY - 3; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        revYear.appendChild(opt);
+      }
+      
+      // Valores por defecto
+      revYear.value = curY;
+      revWeek.value = getWeekNumber(now);
+    });
+
+    const closeRevModal = () => modalRevision.classList.remove('active');
+    btnCloseRevision.addEventListener('click', closeRevModal);
+    btnCloseRevisionBtn.addEventListener('click', closeRevModal);
+
+    btnLoadRev.addEventListener('click', async () => {
+      setRevMsg('Consultando registros...', '');
+      try {
+        const url = WEB_APP_URL + (WEB_APP_URL.includes('?') ? '&' : '?') + 'action=getRecords';
+        const response = await fetch(url);
+        const resJson = await response.json();
+        const records = resJson.records || [];
+        renderRevisionTable(records);
+        setRevMsg('Datos del Sheet cargados.', 'ok');
+      } catch (err) {
+        setRevMsg('Error: ' + err.message, 'error');
+      }
+    });
+
+    btnUploadRev.addEventListener('click', () => fileInputRev.click());
+    fileInputRev.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      setRevMsg('Procesando archivo...', '');
+      try {
+        uploadedSalidas = await readFileForRevision(file);
+        setRevMsg(`Archivo cargado (${uploadedSalidas.length} filas). Actualizando tabla...`, 'ok');
+        // Re-renderizar si ya hay datos
+        btnLoadRev.click();
+      } catch (err) {
+        setRevMsg('Error archivo: ' + err.message, 'error');
+      } finally {
+        fileInputRev.value = '';
+      }
+    });
+
+    btnExportRev.addEventListener('click', () => {
+      const table = document.getElementById('tableWeekly');
+      if (revTableBody.children.length === 0) return setRevMsg('No hay datos para exportar', 'error');
+      
+      const year = revYear.value;
+      const week = revWeek.value;
+      const wb = XLSX.utils.table_to_book(table, { sheet: "Revision" });
+      XLSX.writeFile(wb, `Revision_HE_${year}_S${week}.xlsx`);
+    });
+
+    function getDatesInRange(startStr, endStr) {
+      const start = new Date(startStr + 'T00:00:00');
+      const end = new Date(endStr + 'T00:00:00');
+      const dates = [];
+      let curr = new Date(start);
+      // Limitar a 31 días para evitar problemas de rendimiento
+      let count = 0;
+      while (curr <= end && count < 31) {
+        dates.push(localDateValue(curr));
+        curr.setDate(curr.getDate() + 1);
+        count++;
+      }
+      return dates;
+    }
+
+    // Eliminada getDatesFromWeek en favor de getDatesInRange
+
+    function renderRevisionTable(allRecords) {
+      const year = parseInt(revYear.value);
+      const week = parseInt(revWeek.value);
+      if (isNaN(year) || isNaN(week)) return setRevMsg('Ingrese año y semana válidos.', 'error');
+
+      const { start, end } = getRangeFromWeek(year, week);
+      const d1 = localDateValue(start);
+      const d2 = localDateValue(end);
+      
+      const dates = getDatesInRange(d1, d2);
+      
+      // Actualizar Cabecera
+      const thead = document.getElementById('tableWeekly').querySelector('thead');
+      const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      
+      let headRow1 = `<th rowspan="2">Codigo</th><th rowspan="2">Trabajador</th>`;
+      let headRow2 = ``;
+      
+      dates.forEach(dStr => {
+        const d = new Date(dStr + 'T00:00:00');
+        const dayName = days[d.getDay()];
+        const dateShort = dStr.split('-').slice(1).reverse().join('/'); // MM-DD -> DD/MM
+        headRow1 += `<th colspan="3">${dayName} ${dateShort}</th>`;
+        headRow2 += `<th>HE</th><th>Fin</th><th>Salida</th>`;
+      });
+      
+      headRow1 += `<th rowspan="2">INC</th>`;
+      
+      thead.innerHTML = `<tr class="head-days">${headRow1}</tr><tr class="head-sub">${headRow2}</tr>`;
+
+      // Filtrar registros del sheet por estas fechas
+      const filtered = allRecords.filter(r => dates.includes(normalizeDateForRevision(r.fecha)));
+
+      // Agrupar por código de trabajador
+      const workers = {};
+      filtered.forEach(r => {
+        const c = normalizeCode(r.codigo);
+        if (!workers[c]) workers[c] = { nombre: r.trabajador, data: {} };
+        workers[c].data[normalizeDateForRevision(r.fecha)] = r;
+      });
+
+      revTableBody.innerHTML = '';
+      Object.keys(workers).sort().forEach(code => {
+        const w = workers[code];
+        const tr = document.createElement('tr');
+        let html = `<td>${code}</td><td>${w.nombre}</td>`;
+        let totalHE = 0;
+        
+        dates.forEach(dateStr => {
+          const sheetRow = w.data[dateStr];
+          const fileMatch = uploadedSalidas.find(s => normalizeCode(s.codigo) === code && normalizeDateForRevision(s.fecha) === dateStr);
+          
+          const heRaw = sheetRow ? sheetRow.horas_extras : '';
+          const he = (heRaw && String(heRaw).includes(':')) ? formatDuration(parseTime(heRaw)) : heRaw;
+          if (he) totalHE += parseFloat(he);
+
+          const fin = sheetRow ? fTime(sheetRow.hora_fin) : '';
+          const salida = (fileMatch && he !== '') ? fileMatch.salida1 : '';
+
+          let salidaStyle = '';
+          if (fin && salida) {
+            const tFin = parseTime(fin);
+            let tSalida = parseTime(salida);
+            if (tFin !== null && tSalida !== null) {
+              // Manejo de cruce de medianoche para comparación cercana
+              // Si la diferencia es muy grande (ej. > 12h), probablemente uno cruzó medianoche
+              let diff = tSalida - tFin;
+              if (diff > 720) diff -= 1440;      // Salida parece ser el día anterior (ej. 23:00 vs 01:00)
+              else if (diff < -720) diff += 1440; // Salida parece ser el día siguiente (ej. 01:00 vs 23:00)
+              
+              if (diff < 0 || diff > 30) {
+                salidaStyle = ' style="color: #ff4d4d; font-weight: bold;"';
+              }
+            }
+          }
+
+          html += `<td>${he}</td><td>${fin}</td><td class="col-salida"${salidaStyle}>${salida}</td>`;
+        });
+        
+        const incValue = Math.max(0, totalHE - 12);
+        html += `<td style="font-weight: bold; text-align: center; background-color: rgba(0, 105, 92, 0.1);">${incValue > 0 ? incValue : ''}</td>`;
+        
+        tr.innerHTML = html;
+        revTableBody.appendChild(tr);
+      });
+    }
+
+    // --- Auxiliares para Revision ---
+    function normalizeDateForRevision(d) {
+      if (!d) return '';
+      // Si es un objeto Date (XLSX suele darlos en UTC)
+      if (d instanceof Date) {
+        // Usamos partes UTC exclusivamente para fechas de archivos
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      
+      let s = String(d).trim();
+      
+      // Si es formato ISO YYYY-MM-DD
+      if (s.match(/^\d{4}-\d{2}-\d{2}$/)) return s;
+      
+      // Manejar formato Excel (número)
+      if (!isNaN(s) && s.length >= 5 && !s.includes('/') && !s.includes('-')) {
+        const n = parseFloat(s);
+        if (n > 40000) { // Probable fecha Excel
+          // Convertimos a medianoche UTC para evitar desfases de horario de verano (DST)
+          const date = new Date(Math.round((n - 25569) * 86400 * 1000));
+          const y = date.getUTCFullYear();
+          const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        }
+      }
+
+      if (s.includes('/') || s.includes('-')) {
+        const delimiter = s.includes('/') ? '/' : '-';
+        const p = s.split(delimiter);
+        if (p.length === 3) {
+          // Determinar orden. Si el primer número > 12, es DD/MM/YYYY
+          // Si el segundo número > 12, es MM/DD/YYYY
+          // Si ambos <= 12, es ambiguo. Por el contexto regional (Citi Tex), asumimos DD/MM/YYYY
+          let d1 = parseInt(p[0]);
+          let d2 = parseInt(p[1]);
+          let y = p[2].length === 4 ? p[2] : (parseInt(p[2]) < 50 ? '20' + p[2] : '19' + p[2]);
+          
+          if (p[0].length === 4) { // Formato YYYY/MM/DD
+             return `${p[0]}-${p[1].padStart(2,'0')}-${p[2].padStart(2,'0')}`;
+          }
+
+          if (d1 > 12) { // DD/MM/YYYY
+            return `${y}-${String(d2).padStart(2,'0')}-${String(d1).padStart(2,'0')}`;
+          } else if (d2 > 12) { // MM/DD/YYYY
+            return `${y}-${String(d1).padStart(2,'0')}-${String(d2).padStart(2,'0')}`;
+          } else {
+            // Ambiguo: Asumimos DD/MM/YYYY por estándar regional
+            return `${y}-${String(d2).padStart(2,'0')}-${String(d1).padStart(2,'0')}`;
+          }
+        }
+      }
+      return s;
+    }
+
+    async function readFileForRevision(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        const name = file.name.toLowerCase();
+        const isODS = name.endsWith('.ods') || name.endsWith('.xlsx') || name.endsWith('.xls');
+
+        reader.onload = (e) => {
+          try {
+            if (isODS) {
+              const data = new Uint8Array(e.target.result);
+              const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+              const sheet = workbook.Sheets[workbook.SheetNames[0]];
+              const rows = XLSX.utils.sheet_to_json(sheet);
+              
+              resolve(rows.map(r => {
+                const normalized = {};
+                Object.keys(r).forEach(k => {
+                  normalized[String(k).trim().toLowerCase()] = r[k];
+                });
+                return {
+                  fecha: normalized.fecha || normalized.date || '',
+                  codigo: normalized.codigo || normalized.code || normalized.cod || '',
+                  salida1: normalized.salida1 || normalized.salida || normalized['salida 1'] || ''
+                };
+              }));
+            } else {
+              const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
+              if (lines.length < 2) return resolve([]);
+              const delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
+              const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase());
+              
+              const fIdx = headers.findIndex(h => h.includes('fecha') || h.includes('date'));
+              const cIdx = headers.findIndex(h => h.includes('codigo') || h.includes('code') || h === 'cod');
+              const sIdx = headers.findIndex(h => h.includes('salida'));
+
+              resolve(lines.slice(1).map(line => {
+                const parts = line.split(delimiter);
+                return {
+                  fecha: fIdx !== -1 ? parts[fIdx] : '',
+                  codigo: cIdx !== -1 ? parts[cIdx] : '',
+                  salida1: sIdx !== -1 ? parts[sIdx] : ''
+                };
+              }));
+            }
+          } catch (err) { reject(err); }
+        };
+        if (isODS) reader.readAsArrayBuffer(file);
+        else reader.readAsText(file);
+      });
+    }
+
     loadSheet();
+
     createRow();
   </script>
 </body>
