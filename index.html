@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registro de horas extras</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg-1: #f2efe9;
+      --bg-2: #e2d4c2;
+      --card: rgba(255, 255, 255, 0.8);
+      --ink: #1f2933;
+      --muted: #667085;
+      --line: rgba(31, 41, 51, 0.12);
+      --accent: #0f766e;
+      --accent-2: #115e59;
+      --ok: #14532d;
+      --warn: #7f1d1d;
+      --shadow: 0 24px 60px rgba(31, 41, 51, 0.12);
+      --radius: 22px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 24px;
+      display: grid;
+      place-items: center;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(201, 164, 102, 0.24), transparent 28%),
+        linear-gradient(135deg, var(--bg-1), var(--bg-2));
+    }
+
+    .card {
+      width: min(1200px, 100%);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .hero {
+      padding: 28px 28px 18px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.2));
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(15, 118, 110, 0.1);
+      color: var(--accent-2);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 14px 0 8px;
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+
+    .content {
+      padding: 24px 28px 28px;
+    }
+
+    .header-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.4);
+      border-radius: 16px;
+      border: 1px solid var(--line);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-group label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin: 14px 0 14px;
+      flex-wrap: wrap;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .status strong {
+      color: #334155;
+    }
+
+    .state-ok {
+      color: var(--ok);
+    }
+
+    .state-error {
+      color: var(--warn);
+    }
+
+    .message {
+      min-height: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .message.ok {
+      color: var(--ok);
+    }
+
+    .message.error {
+      color: var(--warn);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.84);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+    }
+
+    thead th {
+      text-align: left;
+      padding: 14px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #475467;
+      background: rgba(15, 118, 110, 0.06);
+      border-bottom: 1px solid var(--line);
+    }
+
+    tbody td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .cell-input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--ink);
+      font-size: 14px;
+      outline: none;
+      transition: all 160ms ease;
+    }
+
+    .cell-input:focus {
+      border-color: rgba(15, 118, 110, 0.55);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .cell-input[readonly] {
+      background: rgba(243, 244, 246, 0.92);
+      color: var(--accent-2);
+      font-weight: 700;
+    }
+
+    .cell-input.code {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .hours {
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      color: var(--ok);
+      background: rgba(20, 83, 45, 0.06);
+    }
+
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: white;
+      padding: 12px 20px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 16px rgba(15, 118, 110, 0.12);
+      transition: all 160ms ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 20px rgba(15, 118, 110, 0.18);
+    }
+
+    button:active {
+      transform: translateY(0);
+      opacity: 0.95;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+      box-shadow: none;
+      transform: none;
+    }
+
+    button.secondary {
+      background: white;
+      color: var(--accent-2);
+      border: 1px solid var(--line);
+      box-shadow: none;
+    }
+
+    button.secondary:hover {
+      background: rgba(15, 118, 110, 0.05);
+      border-color: var(--accent);
+    }
+
+    button.danger {
+      background: rgba(127, 29, 29, 0.1);
+      color: var(--warn);
+      padding: 8px;
+      border-radius: 10px;
+      box-shadow: none;
+    }
+
+    button.danger:hover {
+      background: var(--warn);
+      color: white;
+    }
+
+    .hint {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    /* Tablet & Small Desktop */
+    @media (max-width: 1024px) {
+      .container {
+        max-width: 95%;
+      }
+
+      .header-form {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+      }
+
+      .modal-content {
+        width: 95%;
+        max-height: 90vh;
+      }
+    }
+
+    /* Mobile */
+    @media (max-width: 780px) {
+      body {
+        padding: 12px;
+      }
+
+      .hero,
+      .content {
+        padding-left: 18px;
+        padding-right: 18px;
+      }
+
+      .header-form {
+        grid-template-columns: 1fr;
+      }
+
+      .modal-header h2 {
+        font-size: 18px;
+      }
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(31, 41, 51, 0.4);
+      backdrop-filter: blur(8px);
+      display: none;
+      place-items: center;
+      padding: 20px;
+      z-index: 1000;
+    }
+
+    .modal-overlay.active {
+      display: grid;
+    }
+
+    .modal-content {
+      background: white;
+      width: min(900px, 100%);
+      max-height: 90vh;
+      border-radius: 24px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+      padding: 24px 28px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h2 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .modal-body {
+      padding: 24px 28px;
+      overflow-y: auto;
+    }
+
+    .modal-footer {
+      padding: 18px 28px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .close-modal {
+      background: none;
+      color: var(--muted);
+      font-size: 28px;
+      padding: 0;
+      box-shadow: none;
+    }
+
+    .close-modal:hover {
+      transform: none;
+      color: var(--warn);
+    }
+
+    .summary-filters {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .clickable-row {
+      cursor: pointer;
+      transition: background 160ms;
+    }
+
+    .clickable-row:hover {
+      background: rgba(15, 118, 110, 0.05);
+    }
+
+    .details-box {
+      margin-top: 10px;
+      padding: 15px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .modal-body table {
+      font-size: 10.5px;
+    }
+
+    .modal-body th,
+    .modal-body td {
+      padding: 6px 3px;
+    }
+
+    .details-box.active {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="card">
+    <section class="hero">
+      <div class="eyebrow">HE Citi Tex</div>
+      <h1>Registro de horas extras</h1>
+    </section>
+
+    <section class="content">
+      <div class="toolbar">
+        <div id="estado" class="status"><strong>Estado:</strong> cargando datos de la hoja...</div>
+        <div class="status">Los datos se guardan en la hoja de registros.</div>
+      </div>
+
+      <div class="header-form">
+        <div class="form-group">
+          <label for="fecha">Fecha</label>
+          <input id="fecha" class="cell-input" type="date">
+        </div>
+        <div class="form-group">
+          <label for="codigoResponsable">Cod. Responsable</label>
+          <input id="codigoResponsable" class="cell-input code" type="text" placeholder="E123">
+        </div>
+        <div class="form-group">
+          <label for="nombreResponsable">Nombre Responsable</label>
+          <input id="nombreResponsable" class="cell-input" type="text" readonly placeholder="Se autocompleta">
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="mainTable">
+          <thead>
+            <tr>
+              <th style="width: 150px;">Codigo</th>
+              <th>Trabajador</th>
+              <th style="width: 140px;">Hora inicio</th>
+              <th style="width: 140px;">Hora fin</th>
+              <th style="width: 120px;">H. Extras</th>
+              <th style="width: 60px;"></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <!-- Las filas se agregan aqui -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="actions">
+        <button id="btnAddRow" class="secondary" type="button">+ Agregar Fila</button>
+        <button id="btnGuardar" type="button">Guardar Registros</button>
+        <button id="btnResumen" class="secondary" type="button">Registros</button>
+        <div id="mensaje" class="message"></div>
+      </div>
+
+      <div class="hint">
+        Ingresa el codigo de responsable y luego completa los trabajadores. Las horas extras se calculan
+        automaticamente.
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Resumen -->
+  <div id="modalResumen" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Historial de Registros</h2>
+        <span class="close-modal" id="btnCloseModal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="summary-filters">
+          <div class="form-group">
+            <label>Desde</label>
+            <input type="date" id="filtroDesde" class="cell-input">
+          </div>
+          <div class="form-group">
+            <label>Hasta</label>
+            <input type="date" id="filtroHasta" class="cell-input">
+          </div>
+          <div class="form-group" style="flex: 1; min-width: 350px;">
+            <label>Cod. Responsable</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="filtroCodRes" class="cell-input" style="width: 100px;" placeholder="E000">
+              <input type="text" id="filtroNomRes" class="cell-input" style="flex: 1;" readonly placeholder="...">
+              <button id="btnEjecutarBusqueda" class="primary" style="padding: 0 20px;">Buscar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table
+            style="width: fit-content; table-layout: auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;">
+            <thead>
+              <tr>
+                <th style="white-space: nowrap; width: 1%;">Fecha</th>
+                <th style="white-space: nowrap; width: 1%;">Codigo</th>
+                <th style="white-space: nowrap; width: 1%;">Trabajador</th>
+                <th style="white-space: nowrap; width: 1%;">Inicio</th>
+                <th style="white-space: nowrap; width: 1%;">Fin</th>
+                <th style="white-space: nowrap; width: 1%;">HE</th>
+              </tr>
+            </thead>
+            <tbody id="resumenTableBody" style="white-space: nowrap;">
+              <!-- Datos resumen aqui -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary" id="btnCloseModalBtn">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script>
+    const SHEET_ID = '16Hwc3CuQ5zA-r6BeiYOQt9R-4lWGWPf53cUhunUMJ3c';
+    const SHEET_NAME = 'Datos';
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbx6jixDzvSEz1M6kx7H_8qkSeNCvkwPQMslnxjvkr19z9kOxnhjpmsgodhDGW1kM-U7Vg/exec';
+
+    const fechaInput = document.getElementById('fecha');
+    const codResInput = document.getElementById('codigoResponsable');
+    const nomResInput = document.getElementById('nombreResponsable');
+    const tableBody = document.getElementById('tableBody');
+    const btnAddRow = document.getElementById('btnAddRow');
+    const btnGuardar = document.getElementById('btnGuardar');
+    const estadoBox = document.getElementById('estado');
+    const mensajeBox = document.getElementById('mensaje');
+
+    const btnResumen = document.getElementById('btnResumen');
+    const modalResumen = document.getElementById('modalResumen');
+    const btnCloseModal = document.getElementById('btnCloseModal');
+    const btnCloseModalBtn = document.getElementById('btnCloseModalBtn');
+    const resumenTableBody = document.getElementById('resumenTableBody');
+    const filtroDesde = document.getElementById('filtroDesde');
+    const filtroHasta = document.getElementById('filtroHasta');
+    const filtroCodRes = document.getElementById('filtroCodRes');
+    const filtroNomRes = document.getElementById('filtroNomRes');
+    const btnEjecutarBusqueda = document.getElementById('btnEjecutarBusqueda');
+
+    const registry = new Map();
+    const numericMap = new Map(); // Para buscar "3712" y hallar "E3712"
+    let dataReady = false;
+    let rawRecords = [];
+
+    function findData(input) {
+      const code = normalizeCode(input);
+      if (!code) return { name: '', fullCode: '' };
+      // Intento directo
+      if (registry.has(code)) return { name: registry.get(code), fullCode: code };
+      // Intento por números
+      const numOnly = code.replace(/\D/g, '');
+      if (numOnly && numericMap.has(numOnly)) {
+        const full = numericMap.get(numOnly);
+        return { name: registry.get(full), fullCode: full };
+      }
+      return { name: '', fullCode: '' };
+    }
+
+    function findWorker(input) {
+      return findData(input).name;
+    }
+
+    // --- Utilidades ---
+    function localDateValue(date = new Date()) {
+      const tzOffset = date.getTimezoneOffset() * 60000;
+      return new Date(date.getTime() - tzOffset).toISOString().slice(0, 10);
+    }
+
+    function formatDateDisplay(yyyy_mm_dd) {
+      if (!yyyy_mm_dd) return '';
+      const parts = yyyy_mm_dd.split('-');
+      if (parts.length !== 3) return yyyy_mm_dd;
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
+    function normalizeCode(value) {
+      return String(value || '').trim().toUpperCase();
+    }
+
+    function setStatus(text, tone = '') {
+      estadoBox.className = 'status';
+      if (tone) estadoBox.classList.add('state-' + tone);
+      estadoBox.innerHTML = '<strong>Estado:</strong> ' + text;
+    }
+
+    function setMessage(text, tone = '') {
+      mensajeBox.className = 'message';
+      if (tone) mensajeBox.classList.add(tone);
+      mensajeBox.textContent = text;
+    }
+
+    function parseTime(value) {
+      if (!value) return null;
+      const parts = String(value).split(':');
+      if (parts.length < 2) return null;
+      const hours = Number(parts[0]);
+      const minutes = Number(parts[1]);
+      if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+      return hours * 60 + minutes;
+    }
+
+    function formatDuration(minutes) {
+      const safeMinutes = Math.max(0, Math.round(minutes));
+      const hours = Math.floor(safeMinutes / 60);
+      const mins = safeMinutes % 60;
+      return String(hours).padStart(2, '0') + ':' + String(mins).padStart(2, '0');
+    }
+
+    // --- Manejo de Filas ---
+    function createRow(sTime = '', eTime = '') {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input class="cell-input code row-code" type="text" placeholder="E000"></td>
+        <td><input class="cell-input row-worker" type="text" readonly placeholder="..."></td>
+        <td><input class="cell-input row-start" type="time"></td>
+        <td><input class="cell-input row-end" type="time"></td>
+        <td><input class="cell-input hours row-extras" type="text" readonly placeholder="00:00"></td>
+        <td><button class="danger btn-remove" type="button" title="Eliminar">&times;</button></td>
+      `;
+
+      const codeInp = tr.querySelector('.row-code');
+      const workInp = tr.querySelector('.row-worker');
+      const startInp = tr.querySelector('.row-start');
+      const endInp = tr.querySelector('.row-end');
+      const extraInp = tr.querySelector('.row-extras');
+      const btnRem = tr.querySelector('.btn-remove');
+
+      if (sTime) startInp.value = sTime;
+      if (eTime) endInp.value = eTime;
+
+      const updateRowWorker = () => {
+        const info = findData(codeInp.value);
+        if (info.fullCode) codeInp.value = info.fullCode;
+        workInp.value = info.name;
+      };
+
+      const updateRowHours = () => {
+        const s = parseTime(startInp.value);
+        const e = parseTime(endInp.value);
+        if (s !== null && e !== null) {
+          let diff = e - s;
+          if (diff < 0) diff += 24 * 60;
+          extraInp.value = formatDuration(diff);
+        } else {
+          extraInp.value = '';
+        }
+      };
+
+      const syncSchedules = () => {
+        if (tr === tableBody.firstElementChild) {
+          const s = startInp.value;
+          const e = endInp.value;
+          Array.from(tableBody.children).slice(1).forEach(row => {
+            const rs = row.querySelector('.row-start');
+            const re = row.querySelector('.row-end');
+            if (rs) rs.value = s;
+            if (re) re.value = e;
+            // Disparar evento para que cada fila recalcule su total
+            rs.dispatchEvent(new Event('input'));
+          });
+        }
+      };
+
+      updateRowHours();
+
+      codeInp.addEventListener('input', () => {
+        const info = findData(codeInp.value);
+        if (info.fullCode) codeInp.value = info.fullCode;
+        workInp.value = info.name;
+
+        // Auto-generar siguiente fila si se ingresa código en la última fila actual
+        const currentCode = normalizeCode(codeInp.value);
+        if (currentCode && tr === tableBody.lastElementChild) {
+          const firstRow = tableBody.firstElementChild;
+          if (firstRow) {
+            const s = firstRow.querySelector('.row-start').value;
+            const e = firstRow.querySelector('.row-end').value;
+            createRow(s, e);
+          }
+        }
+      });
+
+      startInp.addEventListener('input', () => {
+        updateRowHours();
+        syncSchedules();
+      });
+
+      endInp.addEventListener('input', () => {
+        updateRowHours();
+        syncSchedules();
+      });
+
+      // Auto-generar segunda fila solo cuando la primera completa su horario
+      endInp.addEventListener('change', () => {
+        if (tr === tableBody.firstElementChild && tableBody.children.length === 1 && endInp.value) {
+          createRow(startInp.value, endInp.value);
+        }
+      });
+
+      btnRem.addEventListener('click', () => {
+        tr.remove();
+        if (tableBody.children.length === 0) createRow();
+      });
+
+      tableBody.appendChild(tr);
+      return tr;
+    }
+
+    // --- Acciones ---
+    async function saveRecords() {
+      if (!dataReady) return setMessage('Cargando datos...', 'error');
+
+      const fecha = fechaInput.value;
+      const cod_resp = normalizeCode(codResInput.value);
+      const responsable = nomResInput.value;
+
+      if (!fecha) return setMessage('Falta la fecha.', 'error');
+      if (!responsable) return setMessage('Falta el responsable.', 'error');
+
+      const payloads = [];
+      Array.from(tableBody.querySelectorAll('tr')).forEach(tr => {
+        const code = normalizeCode(tr.querySelector('.row-code').value);
+        const worker = tr.querySelector('.row-worker').value;
+        const start = tr.querySelector('.row-start').value;
+        const end = tr.querySelector('.row-end').value;
+        const extras = tr.querySelector('.row-extras').value;
+
+        if (code && worker && start && end) {
+          payloads.push({
+            fecha,
+            cod_responsable: cod_resp,
+            responsable,
+            codigo: code,
+            trabajador: worker,
+            hora_inicio: start,
+            hora_fin: end,
+            horas_extras: extras
+          });
+        }
+      });
+
+      if (payloads.length === 0) return setMessage('No hay registros validos para guardar.', 'error');
+
+      btnGuardar.disabled = true;
+      setMessage('Guardando...', '');
+
+      try {
+        const response = await fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payloads)
+        });
+        const resData = await response.json();
+        if (resData.ok) {
+          setMessage('Guardado: ' + resData.message, 'ok');
+          // Limpiar campos de responsable
+          codResInput.value = '';
+          nomResInput.value = '';
+          // Limpiar tabla y crear fila inicial
+          tableBody.innerHTML = '';
+          createRow();
+        } else {
+          throw new Error(resData.error);
+        }
+      } catch (e) {
+        console.error(e);
+        setMessage('Error al guardar: ' + e.message, 'error');
+      } finally {
+        btnGuardar.disabled = false;
+      }
+    }
+
+    // --- Resumen e Historial ---
+    async function loadResumen() {
+      if (!WEB_APP_URL) {
+        resumenTableBody.innerHTML = '<tr><td colspan="8" style="color:var(--warn)">Error: No se ha configurado la URL del Web App (WEB_APP_URL).</td></tr>';
+        return;
+      }
+
+      btnEjecutarBusqueda.disabled = true;
+      resumenTableBody.innerHTML = '<tr><td colspan="8">Extrayendo datos de la hoja "registros"...</td></tr>';
+
+      try {
+        const url = WEB_APP_URL + (WEB_APP_URL.includes('?') ? '&' : '?') + 'action=getRecords';
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Error de servidor: ${response.status}`);
+
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error || 'Error desconocido en el servidor');
+
+        rawRecords = data.records || [];
+        renderResumen();
+      } catch (e) {
+        console.error('Error al cargar historial:', e);
+        resumenTableBody.innerHTML = `<tr><td colspan="8" style="color:var(--warn)">
+          <strong>Error de conexión:</strong> ${e.message}<br>
+          <small>Verifica que hayas publicado el script como "Cualquier persona" y creado una "Nueva versión".</small>
+        </td></tr>`;
+      } finally {
+        btnEjecutarBusqueda.disabled = false;
+      }
+    }
+
+    function renderResumen() {
+      const desde = filtroDesde.value;
+      const hasta = filtroHasta.value;
+      const codRes = normalizeCode(filtroCodRes.value);
+
+      resumenTableBody.innerHTML = '';
+
+      // Si no hay código de responsable, no generamos la tabla
+      if (!codRes) {
+        resumenTableBody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align:center; padding: 40px; color: var(--accent-2);">
+              <div style="font-size: 1.2em; margin-bottom: 8px;">Esperando Código de Responsable...</div>
+              <small>Por favor, ingrese un código para generar la tabla de registros.</small>
+            </td>
+          </tr>`;
+        return;
+      }
+
+      const filtered = rawRecords.filter(rec => {
+        // Normalizar fecha del registro para comparar (yyyy-mm-dd)
+        const recFechaRaw = String(rec.fecha || '').trim();
+        let recFechaCompare = recFechaRaw;
+
+        // Si la fecha tiene formato "dd-mmm-yyyy", lo convertimos a yyyy-mm-dd para comparar
+        if (recFechaRaw.match(/^\d{1,2}-[a-zA-Z]{3}-\d{4}$/)) {
+          const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+          const p = recFechaRaw.split('-');
+          recFechaCompare = `${p[2]}-${months[p[1].toLowerCase()] || '01'}-${p[0].padStart(2, '0')}`;
+        } else if (recFechaRaw.includes('/')) {
+          // Detectar si es MM/DD/YYYY o DD/MM/YYYY.
+          // Si el primer número es > 12, es DD/MM/YYYY.
+          // Si el segundo número es > 12, es MM/DD/YYYY.
+          // En este Sheet vemos 04/18/2026 -> es MM/DD/YYYY
+          const p = recFechaRaw.split('/');
+          if (p.length === 3) {
+            const n1 = parseInt(p[0]);
+            const n2 = parseInt(p[1]);
+            if (n1 > 12) { // DD/MM/YYYY
+              recFechaCompare = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+            } else if (n2 > 12) { // MM/DD/YYYY
+              recFechaCompare = `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
+            } else {
+              // Ambiguo. Por defecto asumimos MM/DD/YYYY para este Sheet
+              recFechaCompare = `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
+            }
+          }
+        }
+
+        const recCodRes = normalizeCode(rec.cod_responsable || '');
+
+        if (desde && recFechaCompare < desde) return false;
+        if (hasta && recFechaCompare > hasta) return false;
+        if (codRes && !recCodRes.includes(codRes)) return false;
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        resumenTableBody.innerHTML = '<tr><td colspan="8">No se encontraron registros.</td></tr>';
+        return;
+      }
+
+      // Ordenar por fecha descendente (comparando las fechas normalizadas)
+      const getCompareDate = (f) => {
+        if (f.match(/^\d{1,2}-[a-zA-Z]{3}-\d{4}$/)) {
+          const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+          const p = f.split('-');
+          return `${p[2]}${months[p[1].toLowerCase()] || '01'}${p[0].padStart(2, '0')}`;
+        }
+        return f.replace(/[-/]/g, '');
+      };
+
+      filtered.sort((a, b) => getCompareDate(b.fecha).localeCompare(getCompareDate(a.fecha)));
+
+      filtered.forEach(rec => {
+        const tr = document.createElement('tr');
+        const fTime = (t) => {
+          if (!t) return '';
+          if (String(t).includes('GMT')) {
+            const d = new Date(t);
+            return isNaN(d.getTime()) ? t : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          }
+          return t;
+        };
+        tr.innerHTML = `
+          <td>${rec.fecha}</td>
+          <td>${rec.codigo}</td>
+          <td style="white-space: nowrap;">${rec.trabajador}</td>
+          <td>${fTime(rec.hora_inicio)}</td>
+          <td>${fTime(rec.hora_fin)}</td>
+          <td><strong>${rec.horas_extras}</strong></td>
+        `;
+        resumenTableBody.appendChild(tr);
+      });
+    }
+
+    // --- Carga Inicial ---
+    function loadSheet() {
+      const callbackName = '__sheet_cb_' + Math.random().toString(36).slice(2);
+      const script = document.createElement('script');
+
+      window[callbackName] = (res) => {
+        try {
+          if (!res || !res.table) throw new Error('No se recibió respuesta de Google.');
+
+          const rows = res.table.rows;
+          const cols = res.table.cols.map(c => String(c.label || c.id || '').trim().toLowerCase());
+
+          const ci = cols.indexOf('codigo');
+          const wi = cols.indexOf('trabajador');
+
+          if (ci === -1 || wi === -1) {
+            throw new Error(`Columnas no halladas: ${ci === -1 ? '[codigo]' : ''} ${wi === -1 ? '[trabajador]' : ''}`);
+          }
+
+          registry.clear();
+          numericMap.clear();
+          rows.forEach(r => {
+            const c = normalizeCode(r.c[ci]?.v);
+            const w = r.c[wi]?.v ? String(r.c[wi].v).trim() : '';
+            if (c && w) {
+              registry.set(c, w);
+              const n = c.replace(/\D/g, '');
+              if (n) numericMap.set(n, c);
+            }
+          });
+
+          dataReady = true;
+          setStatus('Datos cargados. (' + registry.size + ')', 'ok');
+
+          // Refrescar autocompletado
+          nomResInput.value = findWorker(codResInput.value);
+          Array.from(tableBody.querySelectorAll('tr')).forEach(tr => {
+            const cInp = tr.querySelector('.row-code');
+            const wInp = tr.querySelector('.row-worker');
+            if (cInp && wInp) wInp.value = findWorker(cInp.value);
+          });
+
+        } catch (e) {
+          console.error(e);
+          setStatus('Error: ' + e.message, 'error');
+        } finally {
+          delete window[callbackName];
+          script.remove();
+        }
+      };
+
+      script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEET_NAME)}&headers=1&tqx=out:json;responseHandler:${callbackName}`;
+      document.body.appendChild(script);
+    }
+
+    // --- Eventos ---
+    fechaInput.value = localDateValue();
+    codResInput.addEventListener('input', () => {
+      const info = findData(codResInput.value);
+      if (info.fullCode) codResInput.value = info.fullCode;
+      nomResInput.value = info.name;
+    });
+
+    btnAddRow.addEventListener('click', () => {
+      const firstRow = tableBody.firstElementChild;
+      if (firstRow) {
+        const s = firstRow.querySelector('.row-start').value;
+        const e = firstRow.querySelector('.row-end').value;
+        createRow(s, e);
+      } else {
+        createRow();
+      }
+    });
+    btnGuardar.addEventListener('click', saveRecords);
+
+    // Eventos Modal
+    btnResumen.addEventListener('click', () => {
+      modalResumen.classList.add('active');
+      // Por defecto poner fechas de hoy si están vacías
+      const today = localDateValue();
+      if (!filtroDesde.value) filtroDesde.value = today;
+      if (!filtroHasta.value) filtroHasta.value = today;
+
+      // Jalar el código y nombre del responsable actual de la pantalla principal
+      const mainCode = codResInput.value.trim();
+      const mainName = nomResInput.value.trim();
+
+      filtroCodRes.value = mainCode;
+      filtroNomRes.value = mainName;
+
+      loadResumen();
+    });
+
+    const closeModal = () => {
+      modalResumen.classList.remove('active');
+    };
+
+    btnCloseModal.addEventListener('click', closeModal);
+    btnCloseModalBtn.addEventListener('click', closeModal);
+
+    filtroDesde.addEventListener('change', renderResumen);
+    filtroHasta.addEventListener('change', renderResumen);
+    filtroCodRes.addEventListener('input', () => {
+      const info = findData(filtroCodRes.value);
+      if (info.fullCode) filtroCodRes.value = info.fullCode;
+      filtroNomRes.value = info.name;
+    });
+
+    btnEjecutarBusqueda.addEventListener('click', loadResumen);
+
+    loadSheet();
+    createRow();
+  </script>
+</body>
+
+</html>
