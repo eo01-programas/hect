@@ -13,7 +13,7 @@
       --card: rgba(255, 255, 255, 0.8);
       --ink: #1f2933;
       --muted: #667085;
-      --line: rgba(31, 41, 51, 0.12);
+      --line: #5365771f;
       --accent: #0f766e;
       --accent-2: #115e59;
       --ok: #14532d;
@@ -397,6 +397,10 @@
       box-shadow: 0 30px 90px rgba(0, 0, 0, 0.2);
     }
 
+    .summary-modal {
+      width: min(98%, 1280px);
+    }
+
     .modal-header {
       padding: 24px 28px;
       border-bottom: 1px solid var(--line);
@@ -437,9 +441,31 @@
 
     .summary-filters {
       display: flex;
-      gap: 16px;
-      margin-bottom: 24px;
+      gap: 15px;
+      align-items: flex-end;
+      margin-bottom: 20px;
       flex-wrap: wrap;
+      background: #f8fafc;
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    .summary-filters .form-group {
+      min-width: 0;
+    }
+
+    .summary-filters .period-group {
+      width: 150px;
+    }
+
+    .summary-filters .responsable-group {
+      flex: 1;
+      min-width: 350px;
+    }
+
+    .summary-filters .responsable-row {
+      display: flex;
+      gap: 8px;
     }
 
     .clickable-row {
@@ -576,13 +602,13 @@
                 <th colspan="3">Domingo</th>
               </tr>
               <tr class="head-sub">
-                <th>HE</th><th>Fin</th><th>Salida</th>
-                <th>HE</th><th>Fin</th><th>Salida</th>
-                <th>HE</th><th>Fin</th><th>Salida</th>
-                <th>HE</th><th>Fin</th><th>Salida</th>
-                <th>HE</th><th>Fin</th><th>Salida</th>
-                <th>HE</th><th>Fin</th><th>Salida</th>
-                <th>HE</th><th>Fin</th><th>Salida</th>
+                <th>HE</th><th>Fin</th><th>MARC</th>
+                <th>HE</th><th>Fin</th><th>MARC</th>
+                <th>HE</th><th>Fin</th><th>MARC</th>
+                <th>HE</th><th>Fin</th><th>MARC</th>
+                <th>HE</th><th>Fin</th><th>MARC</th>
+                <th>HE</th><th>Fin</th><th>MARC</th>
+                <th>HE</th><th>Fin</th><th>MARC</th>
               </tr>
             </thead>
             <tbody id="revTableBody">
@@ -599,45 +625,37 @@
 
   <!-- Modal Resumen -->
   <div id="modalResumen" class="modal-overlay">
-    <div class="modal-content">
+    <div class="modal-content summary-modal">
       <div class="modal-header">
         <h2>Historial de Registros</h2>
         <span class="close-modal" id="btnCloseModal">&times;</span>
       </div>
       <div class="modal-body">
         <div class="summary-filters">
-          <div class="form-group">
-            <label>Desde</label>
-            <input type="date" id="filtroDesde" class="cell-input">
+          <div class="form-group period-group">
+            <label>Año</label>
+            <select id="filtroYear" class="cell-input"></select>
           </div>
-          <div class="form-group">
-            <label>Hasta</label>
-            <input type="date" id="filtroHasta" class="cell-input">
+          <div class="form-group period-group">
+            <label>Semana #</label>
+            <input type="number" id="filtroWeek" class="cell-input" min="1" max="53">
           </div>
-          <div class="form-group" style="flex: 1; min-width: 350px;">
+          <div class="form-group responsable-group">
             <label>Cod. Responsable</label>
-            <div style="display: flex; gap: 8px;">
+            <div class="responsable-row">
               <input type="text" id="filtroCodRes" class="cell-input" style="width: 100px;" placeholder="E000">
-              <input type="text" id="filtroNomRes" class="cell-input" style="flex: 1;" readonly placeholder="...">
+              <input type="text" id="filtroNomRes" class="cell-input" style="flex: 1;" placeholder="Nombre Responsable">
               <button id="btnEjecutarBusqueda" class="primary" style="padding: 0 20px;">Buscar</button>
             </div>
           </div>
         </div>
 
-        <div class="table-wrap">
-          <table
-            style="width: fit-content; table-layout: auto; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;">
-            <thead>
-              <tr>
-                <th style="white-space: nowrap; width: 1%;">Fecha</th>
-                <th style="white-space: nowrap; width: 1%;">Codigo</th>
-                <th style="white-space: nowrap; width: 1%;">Trabajador</th>
-                <th style="white-space: nowrap; width: 1%;">Inicio</th>
-                <th style="white-space: nowrap; width: 1%;">Fin</th>
-                <th style="white-space: nowrap; width: 1%;">HE</th>
-              </tr>
+        <div class="table-wrap" style="overflow-x: auto;">
+          <table class="table-weekly" id="tableResumenWeekly">
+            <thead id="resumenTableHead">
+              <!-- Cabecera dinamica -->
             </thead>
-            <tbody id="resumenTableBody" style="white-space: nowrap;">
+            <tbody id="resumenTableBody">
               <!-- Datos resumen aqui -->
             </tbody>
           </table>
@@ -668,9 +686,10 @@
     const modalResumen = document.getElementById('modalResumen');
     const btnCloseModal = document.getElementById('btnCloseModal');
     const btnCloseModalBtn = document.getElementById('btnCloseModalBtn');
+    const resumenTableHead = document.getElementById('resumenTableHead');
     const resumenTableBody = document.getElementById('resumenTableBody');
-    const filtroDesde = document.getElementById('filtroDesde');
-    const filtroHasta = document.getElementById('filtroHasta');
+    const filtroYear = document.getElementById('filtroYear');
+    const filtroWeek = document.getElementById('filtroWeek');
     const filtroCodRes = document.getElementById('filtroCodRes');
     const filtroNomRes = document.getElementById('filtroNomRes');
     const btnEjecutarBusqueda = document.getElementById('btnEjecutarBusqueda');
@@ -743,6 +762,38 @@
     function formatDuration(minutes) {
       const safeMinutes = Math.max(0, Math.round(minutes));
       return Math.round(safeMinutes / 60);
+    }
+
+    function normalizeDateForSummary(d) {
+      if (!d) return '';
+
+      const recFechaRaw = String(d).trim();
+      if (!recFechaRaw) return '';
+
+      if (recFechaRaw.match(/^\d{4}-\d{2}-\d{2}$/)) return recFechaRaw;
+
+      if (recFechaRaw.match(/^\d{1,2}-[a-zA-Z]{3}-\d{4}$/)) {
+        const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+        const p = recFechaRaw.split('-');
+        return `${p[2]}-${months[p[1].toLowerCase()] || '01'}-${p[0].padStart(2, '0')}`;
+      }
+
+      if (recFechaRaw.includes('/')) {
+        const p = recFechaRaw.split('/');
+        if (p.length === 3) {
+          const n1 = parseInt(p[0]);
+          const n2 = parseInt(p[1]);
+          if (n1 > 12) {
+            return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+          }
+          if (n2 > 12) {
+            return `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
+          }
+          return `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
+        }
+      }
+
+      return recFechaRaw;
     }
 
     function fTime(t) {
@@ -913,14 +964,38 @@
     }
 
     // --- Resumen e Historial ---
+    function initSummaryPeriod() {
+      const now = new Date();
+      const curY = now.getFullYear();
+
+      filtroYear.innerHTML = '';
+      for (let y = curY; y >= curY - 3; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        filtroYear.appendChild(opt);
+      }
+
+      filtroYear.value = curY;
+      filtroWeek.value = getWeekNumber(now);
+    }
+
     async function loadResumen() {
+      const loadYear = parseInt(filtroYear.value, 10);
+      const loadWeek = parseInt(filtroWeek.value, 10);
+      let summaryColspan = 6;
+      if (!Number.isNaN(loadYear) && !Number.isNaN(loadWeek)) {
+        const range = getRangeFromWeek(loadYear, loadWeek);
+        summaryColspan = 2 + (getDatesInRange(localDateValue(range.start), localDateValue(range.end)).length * 3);
+      }
+
       if (!WEB_APP_URL) {
-        resumenTableBody.innerHTML = '<tr><td colspan="8" style="color:var(--warn)">Error: No se ha configurado la URL del Web App (WEB_APP_URL).</td></tr>';
+        resumenTableBody.innerHTML = `<tr><td colspan="${summaryColspan}" style="color:var(--warn)">Error: No se ha configurado la URL del Web App (WEB_APP_URL).</td></tr>`;
         return;
       }
 
       btnEjecutarBusqueda.disabled = true;
-      resumenTableBody.innerHTML = '<tr><td colspan="8">Extrayendo datos de la hoja "registros"...</td></tr>';
+      resumenTableBody.innerHTML = `<tr><td colspan="${summaryColspan}">Extrayendo datos de la hoja "salida1"...</td></tr>`;
 
       try {
         const url = WEB_APP_URL + (WEB_APP_URL.includes('?') ? '&' : '?') + 'action=getRecords';
@@ -934,7 +1009,7 @@
         renderResumen();
       } catch (e) {
         console.error('Error al cargar historial:', e);
-        resumenTableBody.innerHTML = `<tr><td colspan="8" style="color:var(--warn)">
+        resumenTableBody.innerHTML = `<tr><td colspan="${summaryColspan}" style="color:var(--warn)">
           <strong>Error de conexión:</strong> ${e.message}<br>
           <small>Verifica que hayas publicado el script como "Cualquier persona" y creado una "Nueva versión".</small>
         </td></tr>`;
@@ -944,89 +1019,86 @@
     }
 
     function renderResumen() {
-      const desde = filtroDesde.value;
-      const hasta = filtroHasta.value;
+      const year = parseInt(filtroYear.value, 10);
+      const week = parseInt(filtroWeek.value, 10);
       const codRes = normalizeCode(filtroCodRes.value);
+      const nomRes = String(filtroNomRes.value || '').trim().toLowerCase();
+
+      if (Number.isNaN(year) || Number.isNaN(week)) {
+        resumenTableHead.innerHTML = '';
+        resumenTableBody.innerHTML = '<tr><td colspan="6">Selecciona un año y una semana válidos.</td></tr>';
+        return;
+      }
+
+      const { start, end } = getRangeFromWeek(year, week);
+      const dates = getDatesInRange(localDateValue(start), localDateValue(end));
+      const totalCols = 2 + (dates.length * 3);
+      const days = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
+
+      let headRow1 = `<th rowspan="2">CODIGO</th><th rowspan="2">TRABAJADOR</th>`;
+      let headRow2 = '';
+      dates.forEach(dStr => {
+        const d = new Date(dStr + 'T00:00:00');
+        const dayName = days[d.getDay()];
+        const dateShort = dStr.slice(8, 10) + '/' + dStr.slice(5, 7);
+        headRow1 += `<th colspan="3">${dayName} ${dateShort}</th>`;
+        headRow2 += `<th>INI</th><th>FIN</th><th>HE</th>`;
+      });
+      resumenTableHead.innerHTML = `<tr class="head-days">${headRow1}</tr><tr class="head-sub">${headRow2}</tr>`;
 
       resumenTableBody.innerHTML = '';
 
-      // Si no hay código de responsable, no generamos la tabla
-      if (!codRes) {
+      if (!codRes && !nomRes) {
         resumenTableBody.innerHTML = `
           <tr>
-            <td colspan="6" style="text-align:center; padding: 40px; color: var(--accent-2);">
-              <div style="font-size: 1.2em; margin-bottom: 8px;">Esperando Código de Responsable...</div>
-              <small>Por favor, ingrese un código para generar la tabla de registros.</small>
+            <td colspan="${totalCols}" style="text-align:center; padding: 40px; color: var(--accent-2);">
+              <div style="font-size: 1.2em; margin-bottom: 8px;">Esperando responsable...</div>
+              <small>Por favor, ingrese un código o nombre para generar la tabla de registros.</small>
             </td>
           </tr>`;
         return;
       }
 
+      const dateSet = new Set(dates);
       const filtered = rawRecords.filter(rec => {
-        // Normalizar fecha del registro para comparar (yyyy-mm-dd)
-        const recFechaRaw = String(rec.fecha || '').trim();
-        let recFechaCompare = recFechaRaw;
-
-        // Si la fecha tiene formato "dd-mmm-yyyy", lo convertimos a yyyy-mm-dd para comparar
-        if (recFechaRaw.match(/^\d{1,2}-[a-zA-Z]{3}-\d{4}$/)) {
-          const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
-          const p = recFechaRaw.split('-');
-          recFechaCompare = `${p[2]}-${months[p[1].toLowerCase()] || '01'}-${p[0].padStart(2, '0')}`;
-        } else if (recFechaRaw.includes('/')) {
-          // Detectar si es MM/DD/YYYY o DD/MM/YYYY.
-          // Si el primer número es > 12, es DD/MM/YYYY.
-          // Si el segundo número es > 12, es MM/DD/YYYY.
-          // En este Sheet vemos 04/18/2026 -> es MM/DD/YYYY
-          const p = recFechaRaw.split('/');
-          if (p.length === 3) {
-            const n1 = parseInt(p[0]);
-            const n2 = parseInt(p[1]);
-            if (n1 > 12) { // DD/MM/YYYY
-              recFechaCompare = `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
-            } else if (n2 > 12) { // MM/DD/YYYY
-              recFechaCompare = `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
-            } else {
-              // Ambiguo. Por defecto asumimos MM/DD/YYYY para este Sheet
-              recFechaCompare = `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
-            }
-          }
-        }
-
+        const recFechaCompare = normalizeDateForSummary(rec.fecha);
         const recCodRes = normalizeCode(rec.cod_responsable || '');
+        const recNomRes = String(rec.responsable || '').trim().toLowerCase();
 
-        if (desde && recFechaCompare < desde) return false;
-        if (hasta && recFechaCompare > hasta) return false;
+        if (!dateSet.has(recFechaCompare)) return false;
         if (codRes && !recCodRes.includes(codRes)) return false;
+        if (nomRes && !recNomRes.includes(nomRes)) return false;
         return true;
       });
 
       if (filtered.length === 0) {
-        resumenTableBody.innerHTML = '<tr><td colspan="8">No se encontraron registros.</td></tr>';
+        resumenTableBody.innerHTML = `<tr><td colspan="${totalCols}">No se encontraron registros.</td></tr>`;
         return;
       }
 
-      // Ordenar por fecha descendente (comparando las fechas normalizadas)
-      const getCompareDate = (f) => {
-        if (f.match(/^\d{1,2}-[a-zA-Z]{3}-\d{4}$/)) {
-          const months = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
-          const p = f.split('-');
-          return `${p[2]}${months[p[1].toLowerCase()] || '01'}${p[0].padStart(2, '0')}`;
-        }
-        return f.replace(/[-/]/g, '');
-      };
-
-      filtered.sort((a, b) => getCompareDate(b.fecha).localeCompare(getCompareDate(a.fecha)));
-
+      const workers = {};
       filtered.forEach(rec => {
+        const code = normalizeCode(rec.codigo);
+        if (!workers[code]) workers[code] = { nombre: rec.trabajador, data: {} };
+        workers[code].data[normalizeDateForSummary(rec.fecha)] = rec;
+      });
+
+      Object.keys(workers).sort().forEach(code => {
+        const worker = workers[code];
+        let html = `<td>${code}</td><td>${worker.nombre}</td>`;
+
+        dates.forEach(dateStr => {
+          const row = worker.data[dateStr];
+          const inicio = row ? fTime(row.hora_inicio) : '';
+          const fin = row ? fTime(row.hora_fin) : '';
+          const heRaw = row ? row.horas_extras : '';
+          const he = heRaw && String(heRaw).includes(':') ? formatDuration(parseTime(heRaw)) : heRaw;
+
+          html += `<td>${inicio}</td><td>${fin}</td><td><strong>${he}</strong></td>`;
+        });
+
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${rec.fecha}</td>
-          <td>${rec.codigo}</td>
-          <td style="white-space: nowrap;">${rec.trabajador}</td>
-          <td>${fTime(rec.hora_inicio)}</td>
-          <td>${fTime(rec.hora_fin)}</td>
-          <td><strong>${String(rec.horas_extras).includes(':') ? formatDuration(parseTime(rec.horas_extras)) : rec.horas_extras}</strong></td>
-        `;
+        tr.innerHTML = html;
         resumenTableBody.appendChild(tr);
       });
     }
@@ -1113,10 +1185,8 @@
     // Eventos Modal
     btnResumen.addEventListener('click', () => {
       modalResumen.classList.add('active');
-      // Por defecto poner fechas de hoy si están vacías
-      const today = localDateValue();
-      if (!filtroDesde.value) filtroDesde.value = today;
-      if (!filtroHasta.value) filtroHasta.value = today;
+      // Por defecto poner la semana actual
+      initSummaryPeriod();
 
       // Jalar el código y nombre del responsable actual de la pantalla principal
       const mainCode = codResInput.value.trim();
@@ -1135,12 +1205,19 @@
     btnCloseModal.addEventListener('click', closeModal);
     btnCloseModalBtn.addEventListener('click', closeModal);
 
-    filtroDesde.addEventListener('change', renderResumen);
-    filtroHasta.addEventListener('change', renderResumen);
+    filtroYear.addEventListener('change', renderResumen);
+    filtroWeek.addEventListener('change', renderResumen);
     filtroCodRes.addEventListener('input', () => {
       const info = findData(filtroCodRes.value);
       if (info.fullCode) filtroCodRes.value = info.fullCode;
       filtroNomRes.value = info.name;
+      renderResumen();
+    });
+    filtroNomRes.addEventListener('input', () => {
+      if (filtroNomRes.value.trim()) {
+        filtroCodRes.value = '';
+      }
+      renderResumen();
     });
 
     btnEjecutarBusqueda.addEventListener('click', loadResumen);
@@ -1292,7 +1369,7 @@
         const dayName = days[d.getDay()];
         const dateShort = dStr.split('-').slice(1).reverse().join('/'); // MM-DD -> DD/MM
         headRow1 += `<th colspan="3">${dayName} ${dateShort}</th>`;
-        headRow2 += `<th>HE</th><th>Fin</th><th>Salida</th>`;
+        headRow2 += `<th>HE</th><th>Fin</th><th>MARC</th>`;
       });
       
       headRow1 += `<th rowspan="2">INC</th>`;
@@ -1331,17 +1408,9 @@
           let salidaStyle = '';
           if (fin && salida) {
             const tFin = parseTime(fin);
-            let tSalida = parseTime(salida);
-            if (tFin !== null && tSalida !== null) {
-              // Manejo de cruce de medianoche para comparación cercana
-              // Si la diferencia es muy grande (ej. > 12h), probablemente uno cruzó medianoche
-              let diff = tSalida - tFin;
-              if (diff > 720) diff -= 1440;      // Salida parece ser el día anterior (ej. 23:00 vs 01:00)
-              else if (diff < -720) diff += 1440; // Salida parece ser el día siguiente (ej. 01:00 vs 23:00)
-              
-              if (diff < 0 || diff > 30) {
-                salidaStyle = ' style="color: #ff4d4d; font-weight: bold;"';
-              }
+            const tSalida = parseTime(salida);
+            if (tFin !== null && tSalida !== null && tSalida < tFin) {
+              salidaStyle = ' style="color: #ff4d4d; font-weight: bold;"';
             }
           }
 
@@ -1472,3 +1541,4 @@
 </body>
 
 </html>
+
