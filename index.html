@@ -750,8 +750,15 @@
       return Math.round(safeMinutes / 60);
     }
 
-    function normalizeDateForSummary(d) {
+    function normalizeDateValue(d, preferredDates = null) {
       if (!d) return '';
+
+      if (d instanceof Date) {
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
 
       const recFechaRaw = String(d).trim();
       if (!recFechaRaw) return '';
@@ -764,22 +771,55 @@
         return `${p[2]}-${months[p[1].toLowerCase()] || '01'}-${p[0].padStart(2, '0')}`;
       }
 
+      const tryResolveDate = (year, a, b, preferMonthFirst = false) => {
+        const dayFirst = `${year}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`;
+        const monthFirst = `${year}-${String(a).padStart(2, '0')}-${String(b).padStart(2, '0')}`;
+        if (preferredDates && typeof preferredDates.has === 'function') {
+          if (preferredDates.has(dayFirst)) return dayFirst;
+          if (preferredDates.has(monthFirst)) return monthFirst;
+        }
+        return preferMonthFirst ? monthFirst : dayFirst;
+      };
+
       if (recFechaRaw.includes('/')) {
         const p = recFechaRaw.split('/');
         if (p.length === 3) {
-          const n1 = parseInt(p[0]);
-          const n2 = parseInt(p[1]);
-          if (n1 > 12) {
-            return `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+          if (p[0].length === 4) {
+            return `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}`;
           }
-          if (n2 > 12) {
-            return `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
+
+          const n1 = parseInt(p[0], 10);
+          const n2 = parseInt(p[1], 10);
+          const year = p[2].length === 4 ? p[2] : (parseInt(p[2], 10) < 50 ? '20' + p[2] : '19' + p[2]);
+
+          if (Number.isNaN(n1) || Number.isNaN(n2)) return recFechaRaw;
+          if (n1 > 12) return `${year}-${String(n2).padStart(2, '0')}-${String(n1).padStart(2, '0')}`;
+          if (n2 > 12) return `${year}-${String(n1).padStart(2, '0')}-${String(n2).padStart(2, '0')}`;
+          return tryResolveDate(year, n1, n2, false);
+        }
+      }
+
+      if (recFechaRaw.includes('-')) {
+        const p = recFechaRaw.split('-');
+        if (p.length === 3) {
+          if (p[0].length === 4) {
+            return `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}`;
           }
-          return `${p[2]}-${p[0].padStart(2, '0')}-${p[1].padStart(2, '0')}`;
+          const n1 = parseInt(p[0], 10);
+          const n2 = parseInt(p[1], 10);
+          const year = p[2].length === 4 ? p[2] : (parseInt(p[2], 10) < 50 ? '20' + p[2] : '19' + p[2]);
+          if (Number.isNaN(n1) || Number.isNaN(n2)) return recFechaRaw;
+          if (n1 > 12) return `${year}-${String(n2).padStart(2, '0')}-${String(n1).padStart(2, '0')}`;
+          if (n2 > 12) return `${year}-${String(n1).padStart(2, '0')}-${String(n2).padStart(2, '0')}`;
+          return tryResolveDate(year, n1, n2, false);
         }
       }
 
       return recFechaRaw;
+    }
+
+    function normalizeDateForSummary(d, preferredDates = null) {
+      return normalizeDateValue(d, preferredDates);
     }
 
     function fTime(t) {
@@ -1047,7 +1087,7 @@
 
       const dateSet = new Set(dates);
       const filtered = rawRecords.filter(rec => {
-        const recFechaCompare = normalizeDateForSummary(rec.fecha);
+        const recFechaCompare = normalizeDateForSummary(rec.fecha, dateSet);
         const recCodRes = normalizeCode(rec.cod_responsable || '');
         const recNomRes = String(rec.responsable || '').trim().toLowerCase();
 
@@ -1066,7 +1106,7 @@
       filtered.forEach(rec => {
         const code = normalizeCode(rec.codigo);
         if (!workers[code]) workers[code] = { nombre: rec.trabajador, data: {} };
-        workers[code].data[normalizeDateForSummary(rec.fecha)] = rec;
+        workers[code].data[normalizeDateForSummary(rec.fecha, dateSet)] = rec;
       });
 
       Object.keys(workers).sort().forEach(code => {
@@ -1368,7 +1408,8 @@
       thead.innerHTML = `<tr class="head-days">${headRow1}</tr><tr class="head-sub">${headRow2}</tr>`;
 
       // Filtrar registros del sheet por estas fechas
-      const filtered = allRecords.filter(r => dates.includes(normalizeDateForRevision(r.fecha)));
+      const dateSet = new Set(dates);
+      const filtered = allRecords.filter(r => dateSet.has(normalizeDateForRevision(r.fecha, dateSet)));
 
       // Agrupar por código de trabajador
       const workers = {};
@@ -1376,7 +1417,7 @@
         const c = normalizeCode(r.codigo);
         if (!workers[c]) workers[c] = { nombre: r.trabajador, responsable: String(r.responsable || '').trim(), data: {} };
         if (!workers[c].responsable && r.responsable) workers[c].responsable = String(r.responsable).trim();
-        workers[c].data[normalizeDateForRevision(r.fecha)] = r;
+        workers[c].data[normalizeDateForRevision(r.fecha, dateSet)] = r;
       });
 
       currentRevisionWorkerInfo = workers;
@@ -1389,7 +1430,7 @@
         
         dates.forEach(dateStr => {
           const sheetRow = w.data[dateStr];
-          const fileMatch = uploadedSalidas.find(s => normalizeCode(s.codigo) === code && normalizeDateForRevision(s.fecha) === dateStr);
+          const fileMatch = uploadedSalidas.find(s => normalizeCode(s.codigo) === code && normalizeDateForRevision(s.fecha, dateSet) === dateStr);
           
           const heRaw = sheetRow ? sheetRow.horas_extras : '';
           const he = (heRaw && String(heRaw).includes(':')) ? formatDuration(parseTime(heRaw)) : heRaw;
@@ -1870,27 +1911,23 @@
     }
 
     // --- Auxiliares para Revision ---
-    function normalizeDateForRevision(d) {
+    function normalizeDateForRevision(d, preferredDates = null) {
       if (!d) return '';
-      // Si es un objeto Date (XLSX suele darlos en UTC)
+
       if (d instanceof Date) {
-        // Usamos partes UTC exclusivamente para fechas de archivos
         const y = d.getUTCFullYear();
         const m = String(d.getUTCMonth() + 1).padStart(2, '0');
         const day = String(d.getUTCDate()).padStart(2, '0');
         return `${y}-${m}-${day}`;
       }
-      
+
       let s = String(d).trim();
-      
-      // Si es formato ISO YYYY-MM-DD
+
       if (s.match(/^\d{4}-\d{2}-\d{2}$/)) return s;
-      
-      // Manejar formato Excel (número)
+
       if (!isNaN(s) && s.length >= 5 && !s.includes('/') && !s.includes('-')) {
         const n = parseFloat(s);
-        if (n > 40000) { // Probable fecha Excel
-          // Convertimos a medianoche UTC para evitar desfases de horario de verano (DST)
+        if (n > 40000) {
           const date = new Date(Math.round((n - 25569) * 86400 * 1000));
           const y = date.getUTCFullYear();
           const m = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -1899,32 +1936,7 @@
         }
       }
 
-      if (s.includes('/') || s.includes('-')) {
-        const delimiter = s.includes('/') ? '/' : '-';
-        const p = s.split(delimiter);
-        if (p.length === 3) {
-          // Determinar orden. Si el primer número > 12, es DD/MM/YYYY
-          // Si el segundo número > 12, es MM/DD/YYYY
-          // Si ambos <= 12, es ambiguo. Por el contexto regional (Citi Tex), asumimos DD/MM/YYYY
-          let d1 = parseInt(p[0]);
-          let d2 = parseInt(p[1]);
-          let y = p[2].length === 4 ? p[2] : (parseInt(p[2]) < 50 ? '20' + p[2] : '19' + p[2]);
-          
-          if (p[0].length === 4) { // Formato YYYY/MM/DD
-             return `${p[0]}-${p[1].padStart(2,'0')}-${p[2].padStart(2,'0')}`;
-          }
-
-          if (d1 > 12) { // DD/MM/YYYY
-            return `${y}-${String(d2).padStart(2,'0')}-${String(d1).padStart(2,'0')}`;
-          } else if (d2 > 12) { // MM/DD/YYYY
-            return `${y}-${String(d1).padStart(2,'0')}-${String(d2).padStart(2,'0')}`;
-          } else {
-            // Ambiguo: Asumimos DD/MM/YYYY por estándar regional
-            return `${y}-${String(d2).padStart(2,'0')}-${String(d1).padStart(2,'0')}`;
-          }
-        }
-      }
-      return s;
+      return normalizeDateValue(s, preferredDates);
     }
 
     async function readFileForRevision(file) {
