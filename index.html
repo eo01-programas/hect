@@ -564,7 +564,7 @@
           </div>
           <div class="form-group">
             <button id="btnUploadRev" class="secondary" type="button">Cargar Marcación</button>
-            <input type="file" id="fileInputRev" accept=".ods,.txt" style="display: none;">
+            <input type="file" id="fileInputRev" accept=".ods,.xlsx,.xls,.txt" multiple style="display: none;">
           </div>
           <div class="form-group">
             <button id="btnExportRev" class="secondary" type="button">Exportar Excel</button>
@@ -657,7 +657,7 @@
   <script>
     const SHEET_ID = '16Hwc3CuQ5zA-r6BeiYOQt9R-4lWGWPf53cUhunUMJ3c';
     const SHEET_NAME = 'base';
-    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby3tKVoiUyo6hSvpUrYlddbXlaHepd8yB-sR7I5uTTkhYxAlD13lh3V0LsLGCq70_fGhQ/exec';
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxoiAa-DIWpMrt9aJ9ESB6K4_4tZ-AygSobTluZvoAxtum95ss24nIWejuwExjEkm1FJw/exec';
 
     const fechaInput = document.getElementById('fecha');
     const codResInput = document.getElementById('codigoResponsable');
@@ -684,6 +684,7 @@
     const numericMap = new Map(); // Para buscar "3712" y hallar "E3712"
     let dataReady = false;
     let rawRecords = [];
+    const duplicateLookupState = new WeakMap();
 
     function findData(input) {
       const code = normalizeCode(input);
@@ -831,6 +832,87 @@
       return t;
     }
 
+    function getRowDuplicateKey(tr) {
+      const code = normalizeCode(tr.querySelector('.row-code')?.value);
+      const fecha = fechaInput.value;
+      if (!fecha || !code) return '';
+      return `${fecha}||${code}`;
+    }
+
+    function clearRowDuplicateState(tr) {
+      duplicateLookupState.delete(tr);
+      if (tr && tr.dataset) {
+        tr.dataset.checkedDuplicateKey = '';
+      }
+    }
+
+    async function verifyRowDuplicate(tr, source = 'input') {
+      if (!tr || !document.body.contains(tr)) return false;
+
+      const codeInp = tr.querySelector('.row-code');
+      const workInp = tr.querySelector('.row-worker');
+      const key = getRowDuplicateKey(tr);
+      if (!key) return false;
+
+      const state = duplicateLookupState.get(tr) || {};
+      if (state.lastCheckedKey === key && state.lastResult === 'confirmed') {
+        return true;
+      }
+      if (tr.dataset.checkedDuplicateKey === key) {
+        return false;
+      }
+
+      try {
+        const res = await checkDuplicateRecords([{
+          fecha: fechaInput.value,
+          codigo: normalizeCode(codeInp.value)
+        }]);
+        console.log('[duplicate-check]', source, key, res);
+
+        tr.dataset.checkedDuplicateKey = key;
+        duplicateLookupState.set(tr, { lastCheckedKey: key, lastResult: res.needsConfirmation ? 'confirmed' : 'clear' });
+
+        if (res && res.needsConfirmation) {
+          const ok = window.confirm(
+            res.message || `Ya existe un registro para ${fechaInput.value} y ${normalizeCode(codeInp.value)}. ¿Desea cambiar informacion?`
+          );
+
+          if (!ok) {
+            codeInp.value = '';
+            workInp.value = '';
+            clearRowDuplicateState(tr);
+            setMessage('Se canceló el código duplicado.', 'error');
+            codeInp.focus();
+            return true;
+          }
+
+          setMessage('Se detectó un registro existente para esa fecha y código.', 'error');
+          return true;
+        }
+
+        return false;
+      } catch (err) {
+        console.warn('No se pudo verificar duplicado:', err);
+        return false;
+      }
+    }
+
+    function scheduleRowDuplicateCheck(tr) {
+      if (!tr) return;
+      const pending = duplicateLookupState.get(tr) || {};
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.timer = setTimeout(() => {
+        verifyRowDuplicate(tr, 'typing');
+      }, 350);
+      duplicateLookupState.set(tr, pending);
+    }
+
+    function recheckAllRowsForCurrentDate() {
+      Array.from(tableBody.querySelectorAll('tr')).forEach(tr => {
+        clearRowDuplicateState(tr);
+      });
+    }
+
     // --- Manejo de Filas ---
     function createRow(sTime = '', eTime = '') {
       const tr = document.createElement('tr');
@@ -886,6 +968,7 @@
         const info = findData(codeInp.value);
         if (info.fullCode) codeInp.value = info.fullCode;
         workInp.value = info.name;
+        clearRowDuplicateState(tr);
 
         // Auto-generar siguiente fila si se ingresa código en la última fila actual
         const currentCode = normalizeCode(codeInp.value);
@@ -897,6 +980,11 @@
             createRow(s, e);
           }
         }
+      });
+
+      codeInp.addEventListener('blur', () => {
+        clearRowDuplicateState(tr);
+        verifyRowDuplicate(tr, 'blur');
       });
 
       startInp.addEventListener('input', () => {
@@ -926,6 +1014,40 @@
     }
 
     // --- Acciones ---
+    async function submitRecords(payloads, overwrite = false) {
+      const response = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          payloads,
+          overwrite
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error de servidor: ${response.status}`);
+      }
+
+      return response.json();
+    }
+
+    async function checkDuplicateRecords(payloads) {
+      const response = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'checkDuplicates',
+          payloads
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error de servidor: ${response.status}`);
+      }
+
+      return response.json();
+    }
+
     async function saveRecords() {
       if (!dataReady) return setMessage('Cargando datos...', 'error');
 
@@ -961,26 +1083,68 @@
       if (payloads.length === 0) return setMessage('No hay registros validos para guardar.', 'error');
 
       btnGuardar.disabled = true;
-      setMessage('Guardando...', '');
 
       try {
-        const response = await fetch(WEB_APP_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payloads)
-        });
-        const resData = await response.json();
-        if (resData.ok) {
-          setMessage('Guardado: ' + resData.message, 'ok');
-          // Limpiar campos de responsable
-          codResInput.value = '';
-          nomResInput.value = '';
-          // Limpiar tabla y crear fila inicial
-          tableBody.innerHTML = '';
-          createRow();
-        } else {
-          throw new Error(resData.error);
+        setMessage('Verificación rápida en curso...', '');
+
+        let duplicateCheck = null;
+        try {
+          duplicateCheck = await checkDuplicateRecords(payloads);
+          console.log('Verificación rápida de duplicados:', duplicateCheck);
+        } catch (checkErr) {
+          console.warn('No se pudo hacer la verificación rápida:', checkErr);
+          setMessage('No se pudo hacer la verificación rápida. Intentando guardar...', 'error');
         }
+
+        if (duplicateCheck && duplicateCheck.needsConfirmation) {
+          setMessage('Se detectó un registro existente para la misma fecha y código.', 'error');
+          const shouldOverwrite = window.confirm(
+            duplicateCheck.message || 'Ya existe un registro con la misma fecha y código. ¿Desea cambiar informacion?'
+          );
+          if (!shouldOverwrite) {
+            setMessage('Se canceló el guardado.', '');
+            return;
+          }
+
+          setMessage('Actualizando registros existentes...', '');
+          const overwriteData = await submitRecords(payloads, true);
+          if (!overwriteData.ok) {
+            throw new Error(overwriteData.error || 'No se pudo guardar.');
+          }
+
+          setMessage('Guardado: ' + overwriteData.message, 'ok');
+        } else {
+          const resData = await submitRecords(payloads, false);
+
+          if (resData.needsConfirmation) {
+            const shouldOverwrite = window.confirm(
+              resData.message || 'Ya existe un registro con la misma fecha y código. ¿Desea cambiar informacion?'
+            );
+            if (!shouldOverwrite) {
+              setMessage('Se canceló el guardado.', '');
+              return;
+            }
+
+            setMessage('Actualizando registros existentes...', '');
+            const overwriteData = await submitRecords(payloads, true);
+            if (!overwriteData.ok) {
+              throw new Error(overwriteData.error || 'No se pudo guardar.');
+            }
+
+            setMessage('Guardado: ' + overwriteData.message, 'ok');
+          } else if (resData.ok) {
+            setMessage('Guardado: ' + resData.message, 'ok');
+          } else {
+            throw new Error(resData.error || 'No se pudo guardar.');
+          }
+        }
+
+        // Limpiar campos de responsable
+        codResInput.value = '';
+        nomResInput.value = '';
+        // Limpiar tabla y crear fila inicial
+        tableBody.innerHTML = '';
+        createRow();
       } catch (e) {
         console.error(e);
         setMessage('Error al guardar: ' + e.message, 'error');
@@ -1021,7 +1185,7 @@
       }
 
       btnEjecutarBusqueda.disabled = true;
-      resumenTableBody.innerHTML = `<tr><td colspan="${summaryColspan}">Extrayendo datos de la hoja "salida1"...</td></tr>`;
+      resumenTableBody.innerHTML = `<tr><td colspan="${summaryColspan}">Extrayendo datos de la hoja "Registros"...</td></tr>`;
 
       try {
         const url = WEB_APP_URL + (WEB_APP_URL.includes('?') ? '&' : '?') + 'action=getRecords';
@@ -1190,6 +1354,12 @@
 
     // --- Eventos ---
     fechaInput.value = localDateValue();
+    fechaInput.addEventListener('change', () => {
+      recheckAllRowsForCurrentDate();
+    });
+    fechaInput.addEventListener('input', () => {
+      recheckAllRowsForCurrentDate();
+    });
     codResInput.addEventListener('input', () => {
       const info = findData(codResInput.value);
       if (info.fullCode) codResInput.value = info.fullCode;
@@ -1263,6 +1433,8 @@
     const revMsg = document.getElementById('revMsg');
 
     let uploadedSalidas = []; // { codigo, fecha, salida1 }
+    let uploadedSalidasIndex = new Map();
+    let currentRevisionSheetRecords = [];
     let currentRevisionWorkerInfo = {};
 
     function setRevMsg(text, tone = '') {
@@ -1322,6 +1494,7 @@
         const response = await fetch(url);
         const resJson = await response.json();
         const records = resJson.records || [];
+        currentRevisionSheetRecords = records;
         renderRevisionTable(records);
         setRevMsg('Datos del Sheet cargados.', 'ok');
       } catch (err) {
@@ -1331,14 +1504,37 @@
 
     btnUploadRev.addEventListener('click', () => fileInputRev.click());
     fileInputRev.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      setRevMsg('Procesando archivo...', '');
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      setRevMsg(files.length > 1 ? `Procesando ${files.length} archivos...` : 'Procesando archivo...', '');
       try {
-        uploadedSalidas = await readFileForRevision(file);
-        setRevMsg(`Archivo cargado (${uploadedSalidas.length} filas). Actualizando tabla...`, 'ok');
-        // Re-renderizar si ya hay datos
-        btnLoadRev.click();
+        const results = await Promise.allSettled(files.map(readFileForRevision));
+        const fileBatches = [];
+        const errors = [];
+
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            fileBatches.push(result.value || []);
+          } else {
+            errors.push(`${files[index].name}: ${result.reason && result.reason.message ? result.reason.message : result.reason}`);
+          }
+        });
+
+        if (fileBatches.length === 0) {
+          throw new Error(errors[0] || 'No se pudo procesar ningún archivo.');
+        }
+
+        const merged = fileBatches.flat();
+        uploadedSalidas = mergeRevisionFiles_(merged);
+        uploadedSalidasIndex = buildUploadedSalidasIndex_(uploadedSalidas);
+        const errorText = errors.length ? ` Se omitieron ${errors.length} archivo(s) con error.` : '';
+        setRevMsg(`${files.length} archivo(s) cargado(s), ${uploadedSalidas.length} filas de marcación.${errorText} Actualizando tabla...`, 'ok');
+
+        if (currentRevisionSheetRecords.length > 0) {
+          renderRevisionTable(currentRevisionSheetRecords);
+        } else {
+          btnLoadRev.click();
+        }
       } catch (err) {
         setRevMsg('Error archivo: ' + err.message, 'error');
       } finally {
@@ -1430,7 +1626,7 @@
         
         dates.forEach(dateStr => {
           const sheetRow = w.data[dateStr];
-          const fileMatch = uploadedSalidas.find(s => normalizeCode(s.codigo) === code && normalizeDateForRevision(s.fecha, dateSet) === dateStr);
+          const fileMatch = findUploadedSalidasMatch_(code, dateStr);
           
           const heRaw = sheetRow ? sheetRow.horas_extras : '';
           const he = (heRaw && String(heRaw).includes(':')) ? formatDuration(parseTime(heRaw)) : heRaw;
@@ -1546,7 +1742,7 @@
       downloadArrayBuffer(finalBuffer, filename);
     }
 
-    function buildRevisionWorkbook() {
+    function buildRevisionWorkbookLegacy() {
       const year = parseInt(revYear.value, 10);
       const week = parseInt(revWeek.value, 10);
       if (Number.isNaN(year) || Number.isNaN(week)) {
@@ -1781,6 +1977,13 @@
         fill: { patternType: 'solid', fgColor: { rgb: 'FDECEF' } }
       };
 
+      const marcMissingStyle = {
+        font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '7C5E00' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'FFF2CC' } }
+      };
+
       const setCellStyle = (rowIndex, colIndex, style) => {
         const addr = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
         if (!ws[addr]) ws[addr] = { t: 's', v: '' };
@@ -1816,6 +2019,7 @@
         { wch: 8 },
         { wch: 8 }
       ];
+      applyRevisionColumnGroups_(ws, dates.length);
 
       ws['!rows'] = [
         { hpt: 24 },
@@ -1885,7 +2089,9 @@
           const marcValue = marcCell ? marcCell.textContent.trim() : '';
           const tFin = parseTime(finValue);
           const tMarc = parseTime(marcValue);
-          if (tFin !== null && tMarc !== null && tMarc < tFin) {
+          if (finValue && !marcValue) {
+            setCellStyle(r, 3 + (idx * 3) + 2, marcMissingStyle);
+          } else if (tFin !== null && tMarc !== null && tMarc < tFin) {
             setCellStyle(r, 3 + (idx * 3) + 2, marcAlertStyle);
           }
         });
@@ -1908,6 +2114,415 @@
       };
       XLSX.utils.book_append_sheet(wb, ws, 'Revision_HE');
       return wb;
+    }
+
+    function buildRevisionWorkbook() {
+      const year = parseInt(revYear.value, 10);
+      const week = parseInt(revWeek.value, 10);
+      if (Number.isNaN(year) || Number.isNaN(week)) {
+        throw new Error('Ingrese un año y una semana válidos.');
+      }
+
+      const rows = Array.from(revTableBody.querySelectorAll('tr'));
+      if (rows.length === 0) return null;
+
+      const { start, end } = getRangeFromWeek(year, week);
+      const dates = getDatesInRange(localDateValue(start), localDateValue(end));
+      const groupedRows = partitionRevisionRows_(rows);
+      const wb = XLSX.utils.book_new();
+
+      wb.Workbook = wb.Workbook || {};
+      wb.Workbook.CalcPr = {
+        calcMode: 'auto',
+        calcId: '171027',
+        fullCalcOnLoad: true,
+        forceFullCalc: true
+      };
+      wb.Props = {
+        Title: 'REVISIÓN SEMANAL DE HORAS EXTRAS',
+        Subject: `Semana ${week} - Año ${year}`,
+        Author: 'HE Citi Tex',
+        Company: 'HE Citi Tex',
+        CreatedDate: new Date()
+      };
+
+      XLSX.utils.book_append_sheet(wb, buildRevisionWorksheet_(groupedRows.restRows, dates, year, week), 'Citi Tex');
+      XLSX.utils.book_append_sheet(wb, buildRevisionWorksheet_(groupedRows.greaterRows, dates, year, week), 'Cofaco');
+      return wb;
+    }
+
+    function partitionRevisionRows_(rows) {
+      const greaterRows = [];
+      const restRows = [];
+
+      rows.forEach(tr => {
+        const rowCells = Array.from(tr.querySelectorAll('td'));
+        const code = rowCells[0] ? rowCells[0].textContent.trim() : '';
+        const codeNumber = getRevisionCodeNumber_(code);
+        if (!Number.isNaN(codeNumber) && codeNumber > 20000) {
+          greaterRows.push(tr);
+        } else {
+          restRows.push(tr);
+        }
+      });
+
+      return { greaterRows, restRows };
+    }
+
+    function getRevisionCodeNumber_(code) {
+      const digits = String(code || '').replace(/\D/g, '');
+      if (!digits) return NaN;
+      return parseInt(digits, 10);
+    }
+
+    function buildRevisionWorksheet_(rows, dates, year, week) {
+      const incCol = 3 + (dates.length * 3);
+      const underTwoCol = incCol + 1;
+      const overTwoCol = incCol + 2;
+      const totalCols = overTwoCol + 1;
+      const lastCol = overTwoCol;
+
+      const title = 'REVISIÓN SEMANAL DE HORAS EXTRAS';
+      const subtitle = `Año ${year} | Semana ${week} | Generado ${formatDateTimeForReport(new Date())}`;
+      const aoa = [
+        [title],
+        [subtitle],
+        [],
+      ];
+
+      const rowHead1 = ['Responsable', 'Código', 'Trabajador'];
+      const rowHead2 = ['', '', ''];
+      dates.forEach(dStr => {
+        const d = new Date(dStr + 'T00:00:00');
+        const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][d.getDay()];
+        const dateShort = dStr.slice(8, 10) + '/' + dStr.slice(5, 7);
+        rowHead1.push(`${dayName} ${dateShort}`, '', '');
+        rowHead2.push('HE', 'FIN', 'MARC');
+      });
+      rowHead1.push('INC');
+      rowHead1.push('HE<=2');
+      rowHead1.push('HE>2');
+      rowHead2.push('');
+      rowHead2.push('');
+      rowHead2.push('');
+      aoa.push(rowHead1, rowHead2);
+
+      const defaultResponsible = String(nomResInput.value || filtroNomRes.value || '').trim();
+      const buildUnderTwoFormula = (excelRow) => {
+        const parts = dates.map((_, idx) => {
+          const heCol = XLSX.utils.encode_col(3 + (idx * 3));
+          const ref = `${heCol}${excelRow}`;
+          return `IF(OR(${ref}="",ISBLANK(${ref})),0,IFERROR(MIN(${ref},2),0))`;
+        });
+        return `SUM(${parts.join(',')})`;
+      };
+
+      const buildOverTwoFormula = (excelRow) => {
+        const parts = dates.map((_, idx) => {
+          const heCol = XLSX.utils.encode_col(3 + (idx * 3));
+          const ref = `${heCol}${excelRow}`;
+          return `IFERROR(IF(${ref}>2,${ref}-2,0),0)`;
+        });
+        return `SUM(${parts.join(',')})`;
+      };
+
+      rows.forEach((tr, rowIndex) => {
+        const rowCells = Array.from(tr.querySelectorAll('td'));
+        const code = rowCells[0] ? rowCells[0].textContent.trim() : '';
+        const responsible = (currentRevisionWorkerInfo[code] && currentRevisionWorkerInfo[code].responsable)
+          ? currentRevisionWorkerInfo[code].responsable
+          : defaultResponsible;
+        const row = [responsible, code, rowCells[1] ? rowCells[1].textContent.trim() : ''];
+        const excelRow = 6 + rowIndex;
+
+        dates.forEach((_, idx) => {
+          const heValueRaw = rowCells[2 + (idx * 3)] ? rowCells[2 + (idx * 3)].textContent.trim() : '';
+          const heValue = heValueRaw === '' ? null : Number(heValueRaw);
+          row.push(
+            Number.isFinite(heValue) ? heValue : null,
+            rowCells[2 + (idx * 3) + 1] ? rowCells[2 + (idx * 3) + 1].textContent.trim() : '',
+            rowCells[2 + (idx * 3) + 2] ? rowCells[2 + (idx * 3) + 2].textContent.trim() : ''
+          );
+        });
+
+        const incRaw = rowCells[rowCells.length - 1] ? rowCells[rowCells.length - 1].textContent.trim() : '';
+        const incValue = incRaw === '' ? null : Number(incRaw);
+        row.push(Number.isFinite(incValue) ? incValue : null);
+        row.push({ t: 'n', f: buildUnderTwoFormula(excelRow), v: 0 });
+        row.push({ t: 'n', f: buildOverTwoFormula(excelRow), v: 0 });
+        aoa.push(row);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+      const borderColor = { rgb: 'D0D7DE' };
+      const darkBorderColor = { rgb: '0F4C4A' };
+      const accent = '0F766E';
+      const accentSoft = 'E6F4F1';
+      const headerText = 'FFFFFF';
+      const bodyText = '1F2933';
+
+      const thinBorder = {
+        top: { style: 'thin', color: borderColor },
+        bottom: { style: 'thin', color: borderColor },
+        left: { style: 'thin', color: borderColor },
+        right: { style: 'thin', color: borderColor }
+      };
+
+      const titleStyle = {
+        font: { name: 'Arial', sz: 16, bold: true, color: { rgb: headerText } },
+        fill: { patternType: 'solid', fgColor: { rgb: accent } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: darkBorderColor },
+          bottom: { style: 'thin', color: darkBorderColor },
+          left: { style: 'thin', color: darkBorderColor },
+          right: { style: 'thin', color: darkBorderColor }
+        }
+      };
+
+      const subtitleStyle = {
+        font: { name: 'Arial', sz: 10, bold: true, color: { rgb: accent } },
+        fill: { patternType: 'solid', fgColor: { rgb: accentSoft } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: thinBorder
+      };
+
+      const responsibleStyle = {
+        font: { name: 'Arial', sz: 10, color: { rgb: bodyText } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }
+      };
+
+      const responsibleAltStyle = {
+        font: { name: 'Arial', sz: 10, color: { rgb: bodyText } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }
+      };
+
+      const headerGroupStyle = {
+        font: { name: 'Arial', sz: 10, bold: true, color: { rgb: headerText } },
+        fill: { patternType: 'solid', fgColor: { rgb: accent } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border: {
+          top: { style: 'thin', color: darkBorderColor },
+          bottom: { style: 'thin', color: darkBorderColor },
+          left: { style: 'thin', color: darkBorderColor },
+          right: { style: 'thin', color: darkBorderColor }
+        }
+      };
+
+      const headerSubStyle = {
+        font: { name: 'Arial', sz: 9, bold: true, color: { rgb: accent } },
+        fill: { patternType: 'solid', fgColor: { rgb: 'D9EFEC' } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border: thinBorder
+      };
+
+      const dataStyle = {
+        font: { name: 'Arial', sz: 10, color: { rgb: bodyText } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }
+      };
+
+      const dataAltStyle = {
+        font: { name: 'Arial', sz: 10, color: { rgb: bodyText } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }
+      };
+
+      const workerStyle = {
+        font: { name: 'Arial', sz: 10, color: { rgb: bodyText } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } }
+      };
+
+      const workerAltStyle = {
+        font: { name: 'Arial', sz: 10, color: { rgb: bodyText } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'F8FAFC' } }
+      };
+
+      const incStyle = {
+        font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '14532D' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'E9F8EF' } }
+      };
+
+      const incAltStyle = {
+        font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '14532D' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'DDF3E5' } }
+      };
+
+      const formulaStyle = {
+        font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '1D4ED8' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'EAF2FF' } }
+      };
+
+      const formulaAltStyle = {
+        font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '1D4ED8' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'DCEBFF' } }
+      };
+
+      const marcAlertStyle = {
+        font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '9F1239' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: 'F5C2C7' } },
+          bottom: { style: 'thin', color: { rgb: 'F5C2C7' } },
+          left: { style: 'thin', color: { rgb: 'F5C2C7' } },
+          right: { style: 'thin', color: { rgb: 'F5C2C7' } }
+        },
+        fill: { patternType: 'solid', fgColor: { rgb: 'FDECEF' } }
+      };
+
+      const marcMissingStyle = {
+        font: { name: 'Arial', sz: 10, bold: true, color: { rgb: '7C5E00' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+        fill: { patternType: 'solid', fgColor: { rgb: 'FFF2CC' } }
+      };
+
+      const setCellStyle = (rowIndex, colIndex, style) => {
+        const addr = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+        if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+        ws[addr].s = cloneStyle(style);
+      };
+
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: lastCol } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: lastCol } },
+        { s: { r: 3, c: 0 }, e: { r: 4, c: 0 } },
+        { s: { r: 3, c: 1 }, e: { r: 4, c: 1 } },
+        { s: { r: 3, c: 2 }, e: { r: 4, c: 2 } },
+        { s: { r: 3, c: incCol }, e: { r: 4, c: incCol } },
+        { s: { r: 3, c: underTwoCol }, e: { r: 4, c: underTwoCol } },
+        { s: { r: 3, c: lastCol }, e: { r: 4, c: lastCol } }
+      ];
+
+      dates.forEach((_, idx) => {
+        const startCol = 3 + (idx * 3);
+        ws['!merges'].push({ s: { r: 3, c: startCol }, e: { r: 3, c: startCol + 2 } });
+      });
+
+      ws['!cols'] = [
+        { wch: 24 },
+        { wch: 12 },
+        { wch: 28 },
+        ...dates.flatMap(() => [
+          { wch: 8 },
+          { wch: 8 },
+          { wch: 8 }
+        ]),
+        { wch: 8 },
+        { wch: 8 },
+        { wch: 8 }
+      ];
+
+      ws['!rows'] = [
+        { hpt: 24 },
+        { hpt: 18 },
+        { hpt: 8 },
+        { hpt: 24 },
+        { hpt: 20 },
+        ...rows.map(() => ({ hpt: 18 }))
+      ];
+
+      ws['!margins'] = {
+        left: 0.35,
+        right: 0.35,
+        top: 0.45,
+        bottom: 0.45,
+        header: 0.2,
+        footer: 0.2
+      };
+
+      const bodyStartRow = 5;
+      const bodyEndRow = bodyStartRow + rows.length - 1;
+
+      setCellStyle(0, 0, titleStyle);
+      setCellStyle(1, 0, subtitleStyle);
+      for (let c = 0; c < totalCols; c++) {
+        setCellStyle(3, c, headerGroupStyle);
+        setCellStyle(4, c, headerSubStyle);
+      }
+
+      setCellStyle(3, 0, headerGroupStyle);
+      setCellStyle(3, 1, headerGroupStyle);
+      setCellStyle(3, 2, headerGroupStyle);
+      setCellStyle(3, incCol, headerGroupStyle);
+      setCellStyle(3, underTwoCol, headerGroupStyle);
+      setCellStyle(3, lastCol, headerGroupStyle);
+      setCellStyle(4, 0, headerGroupStyle);
+      setCellStyle(4, 1, headerGroupStyle);
+      setCellStyle(4, 2, headerGroupStyle);
+      setCellStyle(4, incCol, headerGroupStyle);
+      setCellStyle(4, underTwoCol, headerGroupStyle);
+      setCellStyle(4, lastCol, headerGroupStyle);
+
+      for (let r = bodyStartRow; r <= bodyEndRow; r++) {
+        const rowIndex = r - bodyStartRow;
+        const domRow = rows[rowIndex];
+        const rowCells = domRow ? Array.from(domRow.querySelectorAll('td')) : [];
+        const isAlt = ((r - bodyStartRow) % 2) === 1;
+        for (let c = 0; c < totalCols; c++) {
+          if (c === 0) {
+            setCellStyle(r, c, isAlt ? responsibleAltStyle : responsibleStyle);
+          } else if (c === 2) {
+            setCellStyle(r, c, isAlt ? workerAltStyle : workerStyle);
+          } else if (c === incCol) {
+            setCellStyle(r, c, isAlt ? incAltStyle : incStyle);
+          } else if (c === underTwoCol || c === lastCol) {
+            setCellStyle(r, c, isAlt ? formulaAltStyle : formulaStyle);
+          } else {
+            setCellStyle(r, c, isAlt ? dataAltStyle : dataStyle);
+          }
+        }
+
+        dates.forEach((_, idx) => {
+          const finCell = rowCells[2 + (idx * 3) + 1];
+          const marcCell = rowCells[2 + (idx * 3) + 2];
+          const finValue = finCell ? finCell.textContent.trim() : '';
+          const marcValue = marcCell ? marcCell.textContent.trim() : '';
+          const tFin = parseTime(finValue);
+          const tMarc = parseTime(marcValue);
+          if (finValue && !marcValue) {
+            setCellStyle(r, 3 + (idx * 3) + 2, marcMissingStyle);
+          } else if (tFin !== null && tMarc !== null && tMarc < tFin) {
+            setCellStyle(r, 3 + (idx * 3) + 2, marcAlertStyle);
+          }
+        });
+      }
+
+      return ws;
+    }
+
+    function applyRevisionColumnGroups_(ws, dayCount) {
+      if (!ws['!cols']) ws['!cols'] = [];
+
+      for (let idx = 0; idx < dayCount; idx++) {
+        const startCol = 3 + (idx * 3);
+        for (let c = startCol; c < startCol + 3; c++) {
+          if (!ws['!cols'][c]) ws['!cols'][c] = { wch: 8 };
+          ws['!cols'][c].level = 1;
+        }
+      }
+
+      ws['!outline'] = ws['!outline'] || {};
+      ws['!outline'].left = true;
     }
 
     // --- Auxiliares para Revision ---
@@ -1939,6 +2554,86 @@
       return normalizeDateValue(s, preferredDates);
     }
 
+    function mergeRevisionFiles_(records) {
+      const map = new Map();
+      records.forEach(item => {
+        const codigo = normalizeRevisionCodeKey_(item.codigo || '');
+        const fecha = normalizeDateForRevision(item.fecha);
+        const salida1 = normalizeRevisionSalida_(item.salida1 || '');
+        if (!codigo || !fecha) return;
+        map.set(`${codigo}||${fecha}`, {
+          codigo,
+          fecha,
+          salida1
+        });
+      });
+      return Array.from(map.values());
+    }
+
+    function buildUploadedSalidasIndex_(records) {
+      const map = new Map();
+      records.forEach(item => {
+        const fecha = normalizeDateForRevision(item.fecha);
+        const salida1 = normalizeRevisionSalida_(item.salida1 || '');
+        if (!fecha) return;
+
+        getRevisionCodeKeys_(item.codigo).forEach(codeKey => {
+          map.set(`${codeKey}||${fecha}`, {
+            codigo: item.codigo,
+            fecha,
+            salida1
+          });
+        });
+      });
+      return map;
+    }
+
+    function findUploadedSalidasMatch_(codigo, fecha) {
+      const keys = getRevisionCodeKeys_(codigo);
+      for (const codeKey of keys) {
+        const match = uploadedSalidasIndex.get(`${codeKey}||${fecha}`);
+        if (match) return match;
+      }
+      return null;
+    }
+
+    function normalizeRevisionSalida_(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      if (/^\d{1,2}:\d{2}$/.test(raw)) return raw.padStart(5, '0');
+      if (/^\d{1,2}:\d{2}:\d{2}$/.test(raw)) return raw.slice(0, 5);
+      return raw;
+    }
+
+    function normalizeRevisionCodeKey_(value) {
+      const raw = normalizeCode(value);
+      if (!raw) return '';
+      const digits = raw.replace(/\D/g, '');
+      if (digits) return digits;
+      return raw;
+    }
+
+    function getRevisionCodeKeys_(value) {
+      const raw = normalizeCode(value);
+      if (!raw) return [];
+
+      const keys = new Set();
+      keys.add(raw);
+
+      const digits = raw.replace(/\D/g, '');
+      if (digits) {
+        keys.add(digits);
+        if (/^[oO]\d+$/.test(raw)) {
+          keys.add('0' + raw.slice(1));
+        }
+        if (/^0\d+$/.test(raw)) {
+          keys.add('O' + raw.slice(1));
+        }
+      }
+
+      return Array.from(keys);
+    }
+
     async function readFileForRevision(file) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -1965,29 +2660,45 @@
                 };
               }));
             } else {
-              const lines = e.target.result.split(/\r?\n/).filter(l => l.trim());
-              if (lines.length < 2) return resolve([]);
-              const delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
-              const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase());
-              
-              const fIdx = headers.findIndex(h => h.includes('fecha') || h.includes('date'));
-              const cIdx = headers.findIndex(h => h.includes('codigo') || h.includes('code') || h === 'cod');
-              const sIdx = headers.findIndex(h => h.includes('salida'));
-
-              resolve(lines.slice(1).map(line => {
-                const parts = line.split(delimiter);
-                return {
-                  fecha: fIdx !== -1 ? parts[fIdx] : '',
-                  codigo: cIdx !== -1 ? parts[cIdx] : '',
-                  salida1: sIdx !== -1 ? parts[sIdx] : ''
-                };
-              }));
+              resolve(parseRevisionTextFile_(e.target.result));
             }
           } catch (err) { reject(err); }
         };
         if (isODS) reader.readAsArrayBuffer(file);
         else reader.readAsText(file);
       });
+    }
+
+    function parseRevisionTextFile_(text) {
+      const lines = String(text || '')
+        .replace(/^\uFEFF/, '')
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
+
+      if (lines.length === 0) return [];
+
+      const headerLike = /codigo|cod|fecha|salida/i.test(lines[0]) && !/\d{4}-\d{2}-\d{2}/.test(lines[0]);
+      const dataLines = headerLike ? lines.slice(1) : lines;
+
+      return dataLines.map(line => {
+        const matched = line.match(/([A-Za-z0-9]+)\s+(\d{4}-\d{2}-\d{2}|\d{1,2}[\/-]\d{1,2}[\/-]\d{4})\s+(\d{1,2}:\d{2}(?::\d{2})?)/);
+        if (matched) {
+          return {
+            codigo: matched[1] || '',
+            fecha: matched[2] || '',
+            salida1: matched[3] || ''
+          };
+        }
+
+        const parts = line.includes('\t') ? line.split(/\t+/) : line.split(/\s+/);
+        const compact = parts.map(p => String(p).trim()).filter(Boolean);
+        return {
+          codigo: compact[0] || '',
+          fecha: compact[1] || '',
+          salida1: compact[2] || ''
+        };
+      }).filter(item => item.codigo && item.fecha && item.salida1);
     }
 
     loadSheet();
@@ -1997,4 +2708,3 @@
 </body>
 
 </html>
-
